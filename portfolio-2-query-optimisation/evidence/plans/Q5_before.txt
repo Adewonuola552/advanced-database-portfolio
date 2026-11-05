@@ -1,0 +1,42 @@
+Daily reconciliation totals for one month
+
+SELECT (ft.posted_at AT TIME ZONE 'UTC')::date AS posting_date,
+       ft.transaction_type,
+       ft.currency_code,
+       count(*) AS transactions,
+       sum(ft.amount) AS total_amount
+  FROM financial_transaction ft
+ WHERE ft.status = 'POSTED'
+   AND ft.posted_at >= timestamptz '2026-03-01 00:00+00'
+   AND ft.posted_at <  timestamptz '2026-04-01 00:00+00'
+ GROUP BY 1, 2, 3
+ ORDER BY 1, 2, 3
+
+                                                                                                    QUERY PLAN                                                                                                    
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=13798.67..16557.28 rows=19375 width=56) (actual time=29.788..33.148 rows=234 loops=1)
+   Group Key: (((posted_at AT TIME ZONE 'UTC'::text))::date), transaction_type, currency_code
+   Buffers: shared hit=2325 read=6100
+   ->  Gather Merge  (cost=13798.67..15970.78 rows=16496 width=56) (actual time=29.762..32.702 rows=656 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=2325 read=6100
+         ->  Partial GroupAggregate  (cost=12798.65..13066.71 rows=8248 width=56) (actual time=22.534..24.331 rows=219 loops=3)
+               Group Key: (((posted_at AT TIME ZONE 'UTC'::text))::date), transaction_type, currency_code
+               Buffers: shared hit=2325 read=6100
+               ->  Sort  (cost=12798.65..12819.27 rows=8248 width=23) (actual time=22.478..22.844 rows=6969 loops=3)
+                     Sort Key: (((posted_at AT TIME ZONE 'UTC'::text))::date), transaction_type, currency_code
+                     Sort Method: quicksort  Memory: 980kB
+                     Buffers: shared hit=2325 read=6100
+                     Worker 0:  Sort Method: quicksort  Memory: 554kB
+                     Worker 1:  Sort Method: quicksort  Memory: 613kB
+                     ->  Parallel Seq Scan on financial_transaction ft  (cost=0.00..12262.12 rows=8248 width=23) (actual time=0.090..20.443 rows=6969 loops=3)
+                           Filter: ((posted_at >= '2026-03-01 01:00:00+01'::timestamp with time zone) AND (posted_at < '2026-04-01 01:00:00+01'::timestamp with time zone) AND ((status)::text = 'POSTED'::text))
+                           Rows Removed by Filter: 171312
+                           Buffers: shared hit=2221 read=6100
+ Planning:
+   Buffers: shared hit=181
+ Planning Time: 1.504 ms
+ Execution Time: 33.491 ms
+(24 rows)
+

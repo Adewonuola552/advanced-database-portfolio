@@ -1,0 +1,23 @@
+Find audit records by ticket inside JSONB details
+
+SELECT actor_identifier, action, details, created_at
+  FROM audit_log
+ WHERE details @> '{"ticket": "SUP-012345"}'
+ ORDER BY created_at DESC, audit_id
+
+                                                   QUERY PLAN                                                   
+----------------------------------------------------------------------------------------------------------------
+ Sort  (cost=2913.17..2913.19 rows=10 width=103) (actual time=18.417..18.418 rows=1 loops=1)
+   Sort Key: created_at DESC, audit_id
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=1669
+   ->  Seq Scan on audit_log  (cost=0.00..2913.00 rows=10 width=103) (actual time=3.433..18.378 rows=1 loops=1)
+         Filter: (details @> '{"ticket": "SUP-012345"}'::jsonb)
+         Rows Removed by Filter: 99999
+         Buffers: shared hit=1663
+ Planning:
+   Buffers: shared hit=84
+ Planning Time: 0.854 ms
+ Execution Time: 18.524 ms
+(12 rows)
+

@@ -1,0 +1,49 @@
+Whole-ledger audit for unbalanced posted transactions
+
+SELECT ft.reference,
+       sum(CASE WHEN le.entry_type = 'DEBIT' THEN le.amount ELSE -le.amount END) AS difference
+  FROM financial_transaction ft
+  JOIN ledger_entry le ON le.transaction_id = ft.transaction_id
+ WHERE ft.status = 'POSTED'
+ GROUP BY ft.reference
+HAVING sum(CASE WHEN le.entry_type = 'DEBIT' THEN le.amount ELSE -le.amount END) <> 0
+ ORDER BY ft.reference
+
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize GroupAggregate  (cost=92997.41..214385.72 rows=515581 width=44) (actual time=1035.131..1055.631 rows=0 loops=1)
+   Group Key: ft.reference
+   Filter: (sum(CASE WHEN ((le.entry_type)::text = 'DEBIT'::text) THEN le.amount ELSE (- le.amount) END) <> '0'::numeric)
+   Rows Removed by Filter: 518584
+   Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
+   ->  Gather Merge  (cost=92997.41..200320.96 rows=838958 width=44) (actual time=475.394..794.840 rows=589566 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
+         ->  Partial GroupAggregate  (cost=91997.39..102484.36 rows=419479 width=44) (actual time=466.875..658.309 rows=196522 loops=3)
+               Group Key: ft.reference
+               Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
+               ->  Sort  (cost=91997.39..93046.08 rows=419479 width=25) (actual time=466.818..525.903 rows=345723 loops=3)
+                     Sort Key: ft.reference
+                     Sort Method: external merge  Disk: 12032kB
+                     Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
+                     Worker 0:  Sort Method: external merge  Disk: 12720kB
+                     Worker 1:  Sort Method: external merge  Disk: 12032kB
+                     ->  Parallel Hash Join  (cost=15281.44..42783.74 rows=419479 width=25) (actual time=206.759..291.463 rows=345723 loops=3)
+                           Hash Cond: (le.transaction_id = ft.transaction_id)
+                           Buffers: shared hit=14381 read=8608 written=3, temp read=9043 written=9108
+                           ->  Parallel Seq Scan on ledger_entry le  (cost=0.00..18969.73 rows=432973 width=29) (actual time=1.373..56.075 rows=346379 loops=3)
+                                 Buffers: shared hit=10083 read=4557 written=3
+                           ->  Parallel Hash  (cost=11106.63..11106.63 rows=215905 width=28) (actual time=59.008..59.009 rows=172861 loops=3)
+                                 Buckets: 131072  Batches: 8  Memory Usage: 5120kB
+                                 Buffers: shared hit=4270 read=4051, temp written=2708
+                                 ->  Parallel Seq Scan on financial_transaction ft  (cost=0.00..11106.63 rows=215905 width=28) (actual time=0.086..27.195 rows=172861 loops=3)
+                                       Filter: ((status)::text = 'POSTED'::text)
+                                       Rows Removed by Filter: 5419
+                                       Buffers: shared hit=4270 read=4051
+ Planning:
+   Buffers: shared hit=309
+ Planning Time: 2.418 ms
+ Execution Time: 1058.428 ms
+(34 rows)
+

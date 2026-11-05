@@ -1,0 +1,7 @@
+query,description,median_ms,buffers,rows,same_as_pair,scans
+R1a,Filter that wraps the column in a cast (index unusable),44.56,8321,1,True,Seq Scan: financial_transaction
+R1b,Same filter as a range on the bare column,2.26,699,1,True,Bitmap Heap Scan: financial_transaction; Bitmap Index Scan: idx_ft_posted_at
+R2a,Deep page of a statement using OFFSET,17.03,12886,50,True,Index Scan: account_number_unique; Bitmap Heap Scan: ledger_entry; Bitmap Index Scan: idx_ledger_account_created; Index Scan: financial_transaction_pkey
+R2b,Same page using keyset pagination,5.34,3208,50,True,Index Scan: account_number_unique; Bitmap Heap Scan: ledger_entry; Bitmap Index Scan: idx_ledger_account_created; Index Scan: financial_transaction_pkey
+R3a,Customer search with lower() on the column (index unusable),3.89,286,1,True,Seq Scan: customer
+R3b,"Same search by exact value, using the unique index",0.13,3,1,True,Index Scan: customer_email_unique

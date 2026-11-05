@@ -1,0 +1,3 @@
+query,random_order_no_index_ms,random_order_with_index_ms,date_order_no_index_ms,date_order_with_index_ms,same_results,date_order_with_index_scans,date_order_no_index_scans
+Q5,33.01,35.51,33.12,11.24,True,Index Scan: idx_ft_posted_at,Seq Scan: financial_transaction
+Q7,114.02,121.06,110.22,84.58,True,Seq Scan: financial_transaction; Index Scan: idx_ledger_created; Seq Scan: account,Seq Scan: financial_transaction; Seq Scan: ledger_entry; Seq Scan: account

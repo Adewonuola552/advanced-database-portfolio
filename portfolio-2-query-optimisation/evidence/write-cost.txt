@@ -1,0 +1,5 @@
+Median time to insert 10000 ledger entries, rolled back after each of 5 timed runs.
+Triggers and foreign key checks were active in both phases.
+Before indexes: 266.1 ms
+After indexes:  293.1 ms
+Increase:       10%

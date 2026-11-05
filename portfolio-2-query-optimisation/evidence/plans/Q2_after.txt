@@ -1,0 +1,45 @@
+Customer statement, busiest account
+
+SELECT le.created_at, ft.reference, ft.transaction_type, le.entry_type, le.amount
+  FROM account a
+  JOIN ledger_entry le ON le.account_id = a.account_id
+  JOIN financial_transaction ft ON ft.transaction_id = le.transaction_id
+ WHERE a.account_number = '0000000001'
+   AND ft.status = 'POSTED'
+   AND le.created_at >= timestamptz '2026-01-01 00:00+00'
+   AND le.created_at <  timestamptz '2026-07-01 00:00+00'
+ ORDER BY le.created_at DESC
+ LIMIT 50
+
+                                                                                                       QUERY PLAN                                                                                                       
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=57.43..57.45 rows=8 width=42) (actual time=4.661..4.719 rows=50 loops=1)
+   Buffers: shared hit=3140
+   ->  Sort  (cost=57.43..57.45 rows=8 width=42) (actual time=4.628..4.632 rows=50 loops=1)
+         Sort Key: le.created_at DESC
+         Sort Method: top-N heapsort  Memory: 32kB
+         Buffers: shared hit=3140
+         ->  Nested Loop  (cost=5.26..57.31 rows=8 width=42) (actual time=0.198..4.491 rows=630 loops=1)
+               Buffers: shared hit=3137
+               ->  Nested Loop  (cost=4.84..52.37 rows=8 width=37) (actual time=0.177..1.201 rows=630 loops=1)
+                     Buffers: shared hit=617
+                     ->  Index Scan using account_number_unique on account a  (cost=0.29..8.30 rows=1 width=16) (actual time=0.015..0.016 rows=1 loops=1)
+                           Index Cond: ((account_number)::text = '0000000001'::text)
+                           Buffers: shared hit=3
+                     ->  Bitmap Heap Scan on ledger_entry le  (cost=4.55..43.96 rows=10 width=53) (actual time=0.146..1.072 rows=630 loops=1)
+                           Recheck Cond: ((account_id = a.account_id) AND (created_at >= '2026-01-01 01:00:00+01'::timestamp with time zone) AND (created_at < '2026-07-01 01:00:00+01'::timestamp with time zone))
+                           Heap Blocks: exact=608
+                           Buffers: shared hit=614
+                           ->  Bitmap Index Scan on idx_ledger_account_created  (cost=0.00..4.55 rows=10 width=0) (actual time=0.091..0.091 rows=630 loops=1)
+                                 Index Cond: ((account_id = a.account_id) AND (created_at >= '2026-01-01 01:00:00+01'::timestamp with time zone) AND (created_at < '2026-07-01 01:00:00+01'::timestamp with time zone))
+                                 Buffers: shared hit=6
+               ->  Index Scan using financial_transaction_pkey on financial_transaction ft  (cost=0.42..0.62 rows=1 width=37) (actual time=0.005..0.005 rows=1 loops=630)
+                     Index Cond: (transaction_id = le.transaction_id)
+                     Filter: ((status)::text = 'POSTED'::text)
+                     Buffers: shared hit=2520
+ Planning:
+   Buffers: shared hit=492
+ Planning Time: 3.534 ms
+ Execution Time: 4.952 ms
+(28 rows)
+

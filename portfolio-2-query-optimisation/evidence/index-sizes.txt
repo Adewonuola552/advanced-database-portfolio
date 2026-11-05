@@ -1,0 +1,21 @@
+All indexes on the five tables before adding any: 148 MB
+
+         index_name         |      table_name       |  size   |  bytes   | times_used 
+----------------------------+-----------------------+---------+----------+------------
+ idx_ledger_account_created | ledger_entry          | 39 MB   | 41222144 |        253
+ idx_ledger_created         | ledger_entry          | 20 MB   | 21086208 |          8
+ idx_ft_posted_at           | financial_transaction | 11 MB   | 11206656 |         16
+ idx_audit_details          | audit_log             | 5632 kB |  5767168 |          8
+ idx_account_customer       | account               | 808 kB  |   827392 |         40
+ idx_ft_pending_created     | financial_transaction | 40 kB   |    40960 |          8
+(6 rows)
+
+      table_name       | table_size | index_size 
+-----------------------+------------+------------
+ ledger_entry          | 126 MB     | 163 MB
+ financial_transaction | 65 MB      | 63 MB
+ audit_log             | 13 MB      | 8736 kB
+ account               | 3000 kB    | 2680 kB
+ customer              | 2320 kB    | 2248 kB
+(5 rows)
+

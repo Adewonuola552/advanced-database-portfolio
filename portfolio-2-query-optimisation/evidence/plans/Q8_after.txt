@@ -1,0 +1,26 @@
+Find audit records by ticket inside JSONB details
+
+SELECT actor_identifier, action, details, created_at
+  FROM audit_log
+ WHERE details @> '{"ticket": "SUP-012345"}'
+ ORDER BY created_at DESC, audit_id
+
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=54.04..54.07 rows=10 width=103) (actual time=0.068..0.068 rows=1 loops=1)
+   Sort Key: created_at DESC, audit_id
+   Sort Method: quicksort  Memory: 25kB
+   Buffers: shared hit=11
+   ->  Bitmap Heap Scan on audit_log  (cost=16.08..53.88 rows=10 width=103) (actual time=0.035..0.036 rows=1 loops=1)
+         Recheck Cond: (details @> '{"ticket": "SUP-012345"}'::jsonb)
+         Heap Blocks: exact=1
+         Buffers: shared hit=5
+         ->  Bitmap Index Scan on idx_audit_details  (cost=0.00..16.07 rows=10 width=0) (actual time=0.024..0.024 rows=1 loops=1)
+               Index Cond: (details @> '{"ticket": "SUP-012345"}'::jsonb)
+               Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=109
+ Planning Time: 1.115 ms
+ Execution Time: 0.271 ms
+(15 rows)
+

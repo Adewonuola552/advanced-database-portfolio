@@ -1,0 +1,21 @@
+Correlation between column values and physical row order (1 = perfectly in order).
+
+Random insert order:
+       tablename       |  attname   | correlation 
+-----------------------+------------+-------------
+ financial_transaction | posted_at  |      -0.165
+ ledger_entry          | created_at |      -0.161
+(2 rows)
+
+
+After reordering by date:
+       tablename       |  attname   | correlation 
+-----------------------+------------+-------------
+ financial_transaction | posted_at  |       1.000
+ ledger_entry          | created_at |       1.000
+(2 rows)
+
+
+Time to insert 10000 ledger entries in date order, median of 5 rolled-back runs:
+With idx_ledger_created:    282.4 ms
+Without idx_ledger_created: 280.0 ms

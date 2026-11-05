@@ -257,7 +257,7 @@ Transaction amount describes the business event, while ledger amounts describe i
 
 ## 7. Implementation and Testing
 
-Tested on PostgreSQL 14.18. To reproduce, from this folder:
+Tested on PostgreSQL 15.13. To reproduce, from this folder:
 
 ```bash
 createdb clearpay

@@ -1,0 +1,40 @@
+Current balance of one account
+
+SELECT account_number, currency_code, balance
+  FROM customer_account_balance
+ WHERE account_number = '0000015001'
+
+                                                                                  QUERY PLAN                                                                                   
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Subquery Scan on customer_account_balance  (cost=27785.59..27786.14 rows=1 width=35) (actual time=154.157..154.162 rows=1 loops=1)
+   Buffers: shared hit=11948 read=2782
+   ->  GroupAggregate  (cost=27785.59..27786.13 rows=1 width=51) (actual time=154.156..154.159 rows=1 loops=1)
+         Group Key: a.account_id
+         Buffers: shared hit=11948 read=2782
+         ->  Sort  (cost=27785.59..27785.67 rows=35 width=51) (actual time=154.122..154.126 rows=21 loops=1)
+               Sort Key: a.account_id
+               Sort Method: quicksort  Memory: 26kB
+               Buffers: shared hit=11948 read=2782
+               ->  Nested Loop Left Join  (cost=8.74..27784.69 rows=35 width=51) (actual time=3.699..154.060 rows=21 loops=1)
+                     Buffers: shared hit=11945 read=2782
+                     ->  Hash Right Join  (cost=8.32..27767.80 rows=35 width=60) (actual time=3.648..153.784 rows=21 loops=1)
+                           Hash Cond: (le.account_id = a.account_id)
+                           Buffers: shared hit=11861 read=2782
+                           ->  Seq Scan on ledger_entry le  (cost=0.00..25031.36 rows=1039136 width=45) (actual time=0.040..63.517 rows=1039136 loops=1)
+                                 Buffers: shared hit=11858 read=2782
+                           ->  Hash  (cost=8.31..8.31 rows=1 width=31) (actual time=0.031..0.032 rows=1 loops=1)
+                                 Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                 Buffers: shared hit=3
+                                 ->  Index Scan using account_number_unique on account a  (cost=0.29..8.31 rows=1 width=31) (actual time=0.023..0.024 rows=1 loops=1)
+                                       Index Cond: ((account_number)::text = '0000015001'::text)
+                                       Filter: ((account_kind)::text = 'CUSTOMER'::text)
+                                       Buffers: shared hit=3
+                     ->  Index Scan using financial_transaction_pkey on financial_transaction ft  (cost=0.42..0.48 rows=1 width=23) (actual time=0.009..0.009 rows=1 loops=21)
+                           Index Cond: (transaction_id = le.transaction_id)
+                           Buffers: shared hit=84
+ Planning:
+   Buffers: shared hit=397
+ Planning Time: 3.349 ms
+ Execution Time: 154.533 ms
+(30 rows)
+

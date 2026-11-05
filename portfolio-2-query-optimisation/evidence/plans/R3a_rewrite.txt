@@ -1,0 +1,18 @@
+Customer search with lower() on the column (index unusable)
+
+SELECT customer_id, first_name, last_name, email
+  FROM customer
+ WHERE lower(email) = 'customer00123@example.com'
+
+                                              QUERY PLAN                                               
+-------------------------------------------------------------------------------------------------------
+ Seq Scan on customer  (cost=0.00..586.00 rows=100 width=61) (actual time=0.042..3.889 rows=1 loops=1)
+   Filter: (lower((email)::text) = 'customer00123@example.com'::text)
+   Rows Removed by Filter: 19999
+   Buffers: shared hit=286
+ Planning:
+   Buffers: shared hit=99
+ Planning Time: 0.834 ms
+ Execution Time: 4.004 ms
+(8 rows)
+

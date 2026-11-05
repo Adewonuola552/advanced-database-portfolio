@@ -1,0 +1,71 @@
+Top 10 customer accounts by value sent in one month
+
+SELECT a.account_number,
+       a.currency_code,
+       count(*) AS debits,
+       sum(le.amount) AS value_sent
+  FROM ledger_entry le
+  JOIN financial_transaction ft ON ft.transaction_id = le.transaction_id
+  JOIN account a ON a.account_id = le.account_id
+ WHERE le.entry_type = 'DEBIT'
+   AND ft.status = 'POSTED'
+   AND a.account_kind = 'CUSTOMER'
+   AND le.created_at >= timestamptz '2026-03-01 00:00+00'
+   AND le.created_at <  timestamptz '2026-04-01 00:00+00'
+ GROUP BY a.account_number, a.currency_code
+ ORDER BY value_sent DESC, a.account_number
+ LIMIT 10
+
+                                                                                                QUERY PLAN                                                                                                
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=18748.94..18748.97 rows=10 width=55) (actual time=82.657..82.909 rows=10 loops=1)
+   Buffers: shared hit=3200 read=6942
+   ->  Sort  (cost=18748.94..18799.85 rows=20362 width=55) (actual time=82.623..82.839 rows=10 loops=1)
+         Sort Key: (sum(le.amount)) DESC, a.account_number
+         Sort Method: top-N heapsort  Memory: 26kB
+         Buffers: shared hit=3200 read=6942
+         ->  Finalize HashAggregate  (cost=18054.40..18308.93 rows=20362 width=55) (actual time=77.697..80.852 rows=11780 loops=1)
+               Group Key: a.account_number, a.currency_code
+               Batches: 1  Memory Usage: 6161kB
+               Buffers: shared hit=3194 read=6942
+               ->  Gather  (cost=16039.45..17842.30 rows=16968 width=55) (actual time=65.239..68.057 rows=14586 loops=1)
+                     Workers Planned: 2
+                     Workers Launched: 2
+                     Buffers: shared hit=3194 read=6942
+                     ->  Partial HashAggregate  (cost=15039.45..15145.50 rows=8484 width=55) (actual time=58.083..59.544 rows=4862 loops=3)
+                           Group Key: a.account_number, a.currency_code
+                           Batches: 1  Memory Usage: 2705kB
+                           Buffers: shared hit=3194 read=6942
+                           Worker 0:  Batches: 1  Memory Usage: 2705kB
+                           Worker 1:  Batches: 1  Memory Usage: 2705kB
+                           ->  Hash Join  (cost=2947.51..14954.61 rows=8484 width=22) (actual time=39.355..55.666 rows=5747 loops=3)
+                                 Hash Cond: (le.account_id = a.account_id)
+                                 Buffers: shared hit=3194 read=6942
+                                 ->  Parallel Hash Join  (cost=1826.49..13811.31 rows=8485 width=23) (actual time=30.200..44.255 rows=6969 loops=3)
+                                       Hash Cond: (ft.transaction_id = le.transaction_id)
+                                       Buffers: shared hit=2053 read=6942
+                                       ->  Parallel Seq Scan on financial_transaction ft  (cost=0.00..11123.63 rows=216343 width=16) (actual time=0.041..23.755 rows=172861 loops=3)
+                                             Filter: ((status)::text = 'POSTED'::text)
+                                             Rows Removed by Filter: 5419
+                                             Buffers: shared hit=1396 read=6942
+                                       ->  Parallel Hash  (cost=1672.26..1672.26 rows=12338 width=39) (actual time=3.364..3.365 rows=6981 loops=3)
+                                             Buckets: 32768  Batches: 1  Memory Usage: 1824kB
+                                             Buffers: shared hit=657
+                                             ->  Parallel Index Scan using idx_ledger_created on ledger_entry le  (cost=0.42..1672.26 rows=12338 width=39) (actual time=0.040..3.398 rows=10472 loops=2)
+                                                   Index Cond: ((created_at >= '2026-03-01 01:00:00+01'::timestamp with time zone) AND (created_at < '2026-04-01 01:00:00+01'::timestamp with time zone))
+                                                   Filter: ((entry_type)::text = 'DEBIT'::text)
+                                                   Rows Removed by Filter: 10472
+                                                   Buffers: shared hit=657
+                                 ->  Hash  (cost=746.03..746.03 rows=30000 width=31) (actual time=8.936..8.936 rows=30000 loops=3)
+                                       Buckets: 32768  Batches: 1  Memory Usage: 2102kB
+                                       Buffers: shared hit=1113
+                                       ->  Seq Scan on account a  (cost=0.00..746.03 rows=30000 width=31) (actual time=0.035..4.421 rows=30000 loops=3)
+                                             Filter: ((account_kind)::text = 'CUSTOMER'::text)
+                                             Rows Removed by Filter: 2
+                                             Buffers: shared hit=1113
+ Planning:
+   Buffers: shared hit=527
+ Planning Time: 3.544 ms
+ Execution Time: 83.659 ms
+(49 rows)
+

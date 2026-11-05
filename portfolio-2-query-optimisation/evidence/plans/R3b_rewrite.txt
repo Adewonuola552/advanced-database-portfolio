@@ -1,0 +1,17 @@
+Same search by exact value, using the unique index
+
+SELECT customer_id, first_name, last_name, email
+  FROM customer
+ WHERE email = 'customer00123@example.com'
+
+                                                           QUERY PLAN                                                            
+---------------------------------------------------------------------------------------------------------------------------------
+ Index Scan using customer_email_unique on customer  (cost=0.29..8.30 rows=1 width=61) (actual time=0.026..0.027 rows=1 loops=1)
+   Index Cond: ((email)::text = 'customer00123@example.com'::text)
+   Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=103
+ Planning Time: 1.466 ms
+ Execution Time: 0.129 ms
+(7 rows)
+
