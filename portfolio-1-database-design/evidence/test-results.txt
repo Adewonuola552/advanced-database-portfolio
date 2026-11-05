@@ -1,0 +1,75 @@
+=== Account balances after seed data (expected: 0012345601 = 15000.00, 0012345602 = 5000.00, 0012345603 = 0.00) ===
+ account_number | currency_code | balance  
+----------------+---------------+----------
+ 0012345601     | NGN           | 15000.00
+ 0012345602     | NGN           |  5000.00
+ 0012345603     | USD           |     0.00
+
+=== Ledger entries for TX002 and its reversal REV001 ===
+ reference | transaction_type | status | account_number | line_number | entry_type | amount  
+-----------+------------------+--------+----------------+-------------+------------+---------
+ TX002     | TRANSFER         | POSTED | 0012345601     |           1 | DEBIT      | 2000.00
+ TX002     | TRANSFER         | POSTED | 0012345602     |           2 | CREDIT     | 2000.00
+ REV001    | REVERSAL         | POSTED | 0012345602     |           1 | DEBIT      | 2000.00
+ REV001    | REVERSAL         | POSTED | 0012345601     |           2 | CREDIT     | 2000.00
+
+=== Rejection tests ===
+ test_no | result |                            rule                            |                            database_message                            
+---------+--------+------------------------------------------------------------+------------------------------------------------------------------------
+       1 | PASS   | Transaction amount must be above zero                      | new row for relation "financial_transaction" violates check constraint
+       2 | PASS   | Currency must be NGN or USD                                | new row for relation "financial_transaction" violates check constraint
+       3 | PASS   | Transaction type must be in the permitted list             | new row for relation "financial_transaction" violates check constraint
+       4 | PASS   | Account status must be in the permitted list               | new row for relation "account" violates check constraint "account_stat
+       5 | PASS   | Entry type must be DEBIT or CREDIT                         | new row for relation "ledger_entry" violates check constraint "le_type
+       6 | PASS   | Line number must be above zero                             | new row for relation "ledger_entry" violates check constraint "le_line
+       7 | PASS   | Customer account must have an owner                        | new row for relation "account" violates check constraint "account_owne
+       8 | PASS   | Internal account must not have an owner                    | new row for relation "account" violates check constraint "account_owne
+       9 | PASS   | Reversal must reference an original                        | new row for relation "financial_transaction" violates check constraint
+      10 | PASS   | Non-reversal must not reference an original                | new row for relation "financial_transaction" violates check constraint
+      11 | PASS   | Transaction cannot reverse itself                          | new row for relation "financial_transaction" violates check constraint
+      12 | PASS   | Posted transaction needs posted_at                         | new row for relation "financial_transaction" violates check constraint
+      13 | PASS   | Pending transaction must not have posted_at                | new row for relation "financial_transaction" violates check constraint
+      14 | PASS   | Customer email is unique                                   | duplicate key value violates unique constraint "customer_email_unique"
+      15 | PASS   | Customer phone is unique                                   | duplicate key value violates unique constraint "customer_phone_unique"
+      16 | PASS   | Account number is unique                                   | duplicate key value violates unique constraint "account_number_unique"
+      17 | PASS   | Transaction reference is unique                            | duplicate key value violates unique constraint "ft_reference_unique"
+      18 | PASS   | Retried idempotency key cannot create a second transaction | duplicate key value violates unique constraint "ft_idempotency_unique"
+      19 | PASS   | An original can only be fully reversed once                | duplicate key value violates unique constraint "ft_reversal_unique"
+      20 | PASS   | Line number is unique within a transaction                 | duplicate key value violates unique constraint "le_line_unique"
+      21 | PASS   | Entry must reference an existing account                   | insert or update on table "ledger_entry" violates foreign key constrai
+      22 | PASS   | Customer with accounts cannot be deleted                   | update or delete on table "customer" violates foreign key constraint "
+      23 | PASS   | Account with ledger history cannot be deleted              | update or delete on table "account" violates foreign key constraint "l
+      24 | PASS   | Posted transaction needs at least two entries              | posted transaction T11 needs at least two ledger entries
+      25 | PASS   | Posted debits must equal posted credits                    | posted transaction T12 is unbalanced: debits 100.00, credits 90.00
+      26 | PASS   | Ledger total must match transaction amount                 | ledger total 90.00 does not match transaction amount 100.00 for T13
+      27 | PASS   | Affected accounts must use the transaction currency        | currency mismatch between transaction T14 and an account
+      28 | PASS   | Transfer must use different accounts                       | transfer T15 must use different source and destination accounts
+      29 | PASS   | Reversal must reference a posted original                  | reversal T16 must reference a posted transaction
+      30 | PASS   | Reversal must match the original amount                    | reversal T17 must match the original amount and currency
+      31 | PASS   | Reversal must invert the original entries                  | reversal T18 does not invert the original entries
+      32 | PASS   | Posted ledger entry cannot be updated                      | posted ledger entries are immutable
+      33 | PASS   | Posted ledger entry cannot be deleted                      | posted ledger entries are immutable
+      34 | PASS   | Entry cannot be added to a posted transaction              | cannot add ledger entries to a posted transaction
+      35 | PASS   | Posted transaction cannot be changed                       | only pending transactions can be changed
+      36 | PASS   | Posted transaction cannot be deleted                       | posted transactions cannot be deleted
+
+=== Summary ===
+ total | passed | failed 
+-------+--------+--------
+    36 |     36 |      0
+
+=== Real COMMIT of an unbalanced transfer: COMMIT itself must report an error ===
+psql:test_constraints.sql:208: ERROR:  posted transaction T19 is unbalanced: debits 100.00, credits 90.00
+CONTEXT:  PL/pgSQL function validate_posted_transaction() line 19 at RAISE
+=== Rows left by the failed COMMIT (expected: 0) ===
+ rows_left 
+-----------
+         0
+
+=== Balances after all tests (expected: unchanged) ===
+ account_number | currency_code | balance  
+----------------+---------------+----------
+ 0012345601     | NGN           | 15000.00
+ 0012345602     | NGN           |  5000.00
+ 0012345603     | USD           |     0.00
+
