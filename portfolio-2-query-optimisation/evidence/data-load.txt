@@ -3,3 +3,40 @@
  
 (1 row)
 
+=== Row counts ===
+      table_name       | row_count 
+-----------------------+-----------
+ customer              |     20000
+ account               |     30002
+ audit_log             |    100000
+ financial_transaction |    534841
+ ledger_entry          |   1039136
+(5 rows)
+
+=== Transactions by status ===
+ status  | transactions 
+---------+--------------
+ FAILED  |        15273
+ PENDING |          984
+ POSTED  |       518584
+(3 rows)
+
+=== Lowest customer balance (expected: not negative) ===
+ lowest_balance 
+----------------
+    49335092.57
+(1 row)
+
+=== Whole-ledger check by currency: posted debits minus posted credits (expected: 0) ===
+ currency_code | debits_minus_credits 
+---------------+----------------------
+ NGN           |                 0.00
+ USD           |                 0.00
+(2 rows)
+
+=== Debits sent per account: how skewed the activity is ===
+ median_account | busiest_account 
+----------------+-----------------
+             10 |            2146
+(1 row)
+

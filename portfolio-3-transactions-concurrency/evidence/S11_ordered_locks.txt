@@ -1,0 +1,51 @@
+Scenario S11_ordered_locks: CONTROL: locking in account_id order removes the deadlock
+Expected: B waits for A, then both transfers commit; balances unchanged overall
+Result:   PASS
+
+Sessions: A starts at 0.0s, B starts at 0.3s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | A: transfers 1,000 Amina -> Tunde with post_transfer (locks in account_id order), holds for 1.5 seconds
+  0.03s  A | BEGIN;
+  0.03s  A | BEGIN
+  0.03s  A | SELECT post_transfer('req-A', 'TRF-A', '0012345601', '0012345602', 1000, 'demo') IS NOT NULL AS posted;
+  0.04s  A |  posted 
+  0.04s  A | --------
+  0.04s  A |  t
+  0.04s  A | (1 row)
+  0.04s  A | 
+  0.04s  A | SELECT pg_sleep(1.5);
+  0.37s  B | B: transfers 1,000 Tunde -> Amina with post_transfer
+  0.38s  B | BEGIN;
+  0.38s  B | BEGIN
+  0.38s  B | SELECT post_transfer('req-B', 'TRF-B', '0012345602', '0012345601', 1000, 'demo') IS NOT NULL AS posted;
+  1.55s  A |  pg_sleep 
+  1.55s  A | ----------
+  1.55s  A |  
+  1.55s  A | (1 row)
+  1.55s  A | 
+  1.55s  A | COMMIT;
+  1.55s  A | COMMIT
+  1.58s  B |  posted 
+  1.58s  B | --------
+  1.58s  B |  t
+  1.58s  B | (1 row)
+  1.58s  B | 
+  1.58s  B | COMMIT;
+  1.58s  B | COMMIT
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     |  20000.00
+ 0012345602     |   5000.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+ reference | transaction_type | status | amount  | posted 
+-----------+------------------+--------+---------+--------
+ TRF-A     | TRANSFER         | POSTED | 1000.00 | t
+ TRF-B     | TRANSFER         | POSTED | 1000.00 | t
+

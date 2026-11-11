@@ -1,0 +1,6 @@
+Collections and indexes:
+  accounts       validated    {"_id":1}, {"accountNumber":1} unique, {"customer.customerId":1}
+  audit_events   time-series  {"meta":1,"at":1}, {"meta.actor":1,"at":-1}
+  customers      validated    {"_id":1}, {"email":1} unique, {"phone":1} unique, {"accounts.accountNumber":1} unique
+  daily_limits   validated    {"_id":1}, {"expiresAt":1} TTL(0s)
+  transactions   validated    {"_id":1}, {"reference":1} unique, {"idempotencyKey":1} unique, {"reversalOf":1} unique partial

@@ -1,0 +1,64 @@
+Scenario S12_idempotent_retry: Idempotency: a concurrent retry of the same request posts only once
+Expected: B's retry waits, then returns A's transaction instead of posting again; the same key with a different amount is rejected; Amina 17,500
+Result:   PASS
+
+Sessions: A starts at 0.0s, B starts at 0.3s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | A: Amina sends 2,500 to Tunde (key req-777); the response is slow, so the app times out
+  0.03s  A | BEGIN;
+  0.03s  A | BEGIN
+  0.03s  A | SELECT post_transfer('req-777', 'TRF-777', '0012345601', '0012345602', 2500, 'amina.mobile-app') AS transaction_id;
+  0.05s  A |             transaction_id            
+  0.05s  A | --------------------------------------
+  0.05s  A |  dc9bdec6-5548-4760-b575-d766d48da810
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | SELECT pg_sleep(1.5);
+  0.37s  B | B: the app retries the same request with the same key while A is still running
+  0.37s  B | BEGIN;
+  0.37s  B | BEGIN
+  0.37s  B | SELECT post_transfer('req-777', 'TRF-777-RETRY', '0012345601', '0012345602', 2500, 'amina.mobile-app') AS transaction_id;
+  1.55s  A |  pg_sleep 
+  1.55s  A | ----------
+  1.55s  A |  
+  1.55s  A | (1 row)
+  1.55s  A | 
+  1.55s  A | COMMIT;
+  1.56s  A | COMMIT
+  1.57s  B | psql:scenarios/S12_idempotent_retry_B.sql:3: NOTICE:  idempotency key req-777 was already processed as TRF-777: returning the original transaction
+  1.57s  B |             transaction_id            
+  1.57s  B | --------------------------------------
+  1.57s  B |  dc9bdec6-5548-4760-b575-d766d48da810
+  1.57s  B | (1 row)
+  1.57s  B | 
+  1.57s  B | COMMIT;
+  1.57s  B | COMMIT
+  1.57s  B | B: a buggy client reuses the key for a different amount
+  1.57s  B | BEGIN;
+  1.57s  B | BEGIN
+  1.57s  B | SELECT post_transfer('req-777', 'TRF-778', '0012345601', '0012345602', 9999, 'amina.mobile-app') AS transaction_id;
+  1.57s  B | psql:scenarios/S12_idempotent_retry_B.sql:7: ERROR:  idempotency key req-777 was already used for a different request (TRF-777)
+  1.57s  B | COMMIT;
+  1.57s  B | ROLLBACK
+  1.57s  B | SELECT reference, idempotency_key, amount FROM financial_transaction WHERE idempotency_key = 'req-777';
+  1.57s  B |  reference | idempotency_key | amount  
+  1.57s  B | -----------+-----------------+---------
+  1.57s  B |  TRF-777   | req-777         | 2500.00
+  1.57s  B | (1 row)
+  1.57s  B | 
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     |  17500.00
+ 0012345602     |   7500.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+ reference | transaction_type | status | amount  | posted 
+-----------+------------------+--------+---------+--------
+ TRF-777   | TRANSFER         | POSTED | 2500.00 | t
+

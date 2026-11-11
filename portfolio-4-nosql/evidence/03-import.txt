@@ -1,0 +1,11 @@
+connected to: mongodb://127.0.0.1:27117/clearpay?replicaSet=clearpay-rs
+20000 document(s) imported successfully. 0 document(s) failed to import.
+connected to: mongodb://127.0.0.1:27117/clearpay?replicaSet=clearpay-rs
+30002 document(s) imported successfully. 0 document(s) failed to import.
+connected to: mongodb://127.0.0.1:27117/clearpay?replicaSet=clearpay-rs
+[#########...............] clearpay.transactions	131MB/339MB (38.7%)
+[##################......] clearpay.transactions	266MB/339MB (78.4%)
+[########################] clearpay.transactions	339MB/339MB (100.0%)
+534841 document(s) imported successfully. 0 document(s) failed to import.
+connected to: mongodb://127.0.0.1:27117/clearpay?replicaSet=clearpay-rs
+100000 document(s) imported successfully. 0 document(s) failed to import.

@@ -1,0 +1,39 @@
+PostgreSQL source and MongoDB copy, summarised in the same format:
+
+PG    balances CUSTOMER NGN accounts=27000 total=13500326874208.20 min=479841426.99 max=500409502.16
+MONGO balances CUSTOMER NGN accounts=27000 total=13500326874208.20 min=479841426.99 max=500409502.16
+PG    balances CUSTOMER USD accounts=3000 total=150003447640.42 min=49335092.57 max=50040128.83
+MONGO balances CUSTOMER USD accounts=3000 total=150003447640.42 min=49335092.57 max=50040128.83
+PG    balances INTERNAL NGN accounts=1 total=-13500326874208.20 min=-13500326874208.20 max=-13500326874208.20
+MONGO balances INTERNAL NGN accounts=1 total=-13500326874208.20 min=-13500326874208.20 max=-13500326874208.20
+PG    balances INTERNAL USD accounts=1 total=-150003447640.42 min=-150003447640.42 max=-150003447640.42
+MONGO balances INTERNAL USD accounts=1 total=-150003447640.42 min=-150003447640.42 max=-150003447640.42
+PG    count accounts=30002
+MONGO count accounts=30002
+PG    count audit_events=100000
+MONGO count audit_events=100000
+PG    count customers=20000
+MONGO count customers=20000
+PG    transactions FAILED DEPOSIT count=2734 amount=31729167.22 legs=0
+MONGO transactions FAILED DEPOSIT count=2734 amount=31729167.22 legs=0
+PG    transactions FAILED TRANSFER count=10665 amount=122317873.84 legs=0
+MONGO transactions FAILED TRANSFER count=10665 amount=122317873.84 legs=0
+PG    transactions FAILED WITHDRAWAL count=1874 amount=22338756.75 legs=0
+MONGO transactions FAILED WITHDRAWAL count=1874 amount=22338756.75 legs=0
+PG    transactions PENDING DEPOSIT count=175 amount=1913930.92 legs=350
+MONGO transactions PENDING DEPOSIT count=175 amount=1913930.92 legs=350
+PG    transactions PENDING TRANSFER count=698 amount=8398920.75 legs=1396
+MONGO transactions PENDING TRANSFER count=698 amount=8398920.75 legs=1396
+PG    transactions PENDING WITHDRAWAL count=111 amount=1356120.31 legs=222
+MONGO transactions PENDING WITHDRAWAL count=111 amount=1356120.31 legs=222
+PG    transactions POSTED DEPOSIT count=117146 amount=13650999049760.39 legs=234292
+MONGO transactions POSTED DEPOSIT count=117146 amount=13650999049760.39 legs=234292
+PG    transactions POSTED REVERSAL count=4841 amount=56723760.89 legs=9682
+MONGO transactions POSTED REVERSAL count=4841 amount=56723760.89 legs=9682
+PG    transactions POSTED TRANSFER count=338432 amount=3882932625.52 legs=676864
+MONGO transactions POSTED TRANSFER count=338432 amount=3882932625.52 legs=676864
+PG    transactions POSTED WITHDRAWAL count=58165 amount=668727911.77 legs=116330
+MONGO transactions POSTED WITHDRAWAL count=58165 amount=668727911.77 legs=116330
+
+diff: the two summaries are IDENTICAL
+Stored balance vs sum of posted legs: 30002 of 30002 accounts with ledger activity match (0 MISMATCH), in 2513 ms

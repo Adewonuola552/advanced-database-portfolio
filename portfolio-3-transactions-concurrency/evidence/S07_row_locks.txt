@@ -1,0 +1,76 @@
+Scenario S07_row_locks: CONTROL 1: row locks (SELECT ... FOR UPDATE) serialise the two withdrawals
+Expected: B waits for A's lock (visible in pg_stat_activity), then reads 5,000 and is rejected; balance 5,000
+Result:   PASS
+
+Sessions: A starts at 0.0s, B starts at 0.5s, MONITOR starts at 1.2s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A       | A (ATM 1): withdraws 15,000 with post_withdrawal, then holds the transaction open for 2 seconds
+  0.03s  A       | BEGIN;
+  0.03s  A       | BEGIN
+  0.03s  A       | SELECT post_withdrawal('req-atm1-7001', 'WDR-A', '0012345601', 15000, 'atm-1') IS NOT NULL AS posted;
+  0.05s  A       |  posted 
+  0.05s  A       | --------
+  0.05s  A       |  t
+  0.05s  A       | (1 row)
+  0.05s  A       | 
+  0.05s  A       | SELECT pg_sleep(2);
+  0.58s  B       | B (ATM 2): withdraws 15,000 from the same account at the same time
+  0.58s  B       | BEGIN;
+  0.58s  B       | BEGIN
+  0.58s  B       | SELECT post_withdrawal('req-atm2-7002', 'WDR-B', '0012345601', 15000, 'atm-2') IS NOT NULL AS posted;
+  1.28s  MONITOR | MONITOR: which sessions are waiting, on what, and who blocks them
+  1.28s  MONITOR | SELECT pid, state, wait_event_type, wait_event, pg_blocking_pids(pid) AS blocked_by, left(query, 70) AS query
+  1.28s  MONITOR |   FROM pg_stat_activity
+  1.28s  MONITOR |  WHERE datname = current_database() AND pid <> pg_backend_pid() AND backend_type = 'client backend'
+  1.28s  MONITOR |  ORDER BY backend_start;
+  1.29s  MONITOR |   pid  | state  | wait_event_type |  wait_event   | blocked_by |                                 query                                  
+  1.29s  MONITOR | -------+--------+-----------------+---------------+------------+------------------------------------------------------------------------
+  1.29s  MONITOR |  92825 | active | Timeout         | PgSleep       | {}         | SELECT pg_sleep(2);
+  1.29s  MONITOR |  92827 | active | Lock            | transactionid | {92825}    | SELECT post_withdrawal('req-atm2-7002', 'WDR-B', '0012345601', 15000, 
+  1.29s  MONITOR | (2 rows)
+  1.29s  MONITOR | 
+  1.29s  MONITOR | SELECT l.pid, c.relname, l.locktype, l.mode, l.granted
+  1.29s  MONITOR |   FROM pg_locks l JOIN pg_class c ON c.oid = l.relation
+  1.29s  MONITOR |  WHERE c.relname = 'account' AND l.pid <> pg_backend_pid()
+  1.29s  MONITOR |  ORDER BY l.pid, l.mode;
+  1.30s  MONITOR |   pid  | relname | locktype |        mode         | granted 
+  1.30s  MONITOR | -------+---------+----------+---------------------+---------
+  1.30s  MONITOR |  92825 | account | relation | AccessShareLock     | t
+  1.30s  MONITOR |  92825 | account | relation | RowShareLock        | t
+  1.30s  MONITOR |  92827 | account | tuple    | AccessExclusiveLock | t
+  1.30s  MONITOR |  92827 | account | relation | AccessShareLock     | t
+  1.30s  MONITOR |  92827 | account | relation | RowShareLock        | t
+  1.30s  MONITOR | (5 rows)
+  1.30s  MONITOR | 
+  2.05s  A       |  pg_sleep 
+  2.05s  A       | ----------
+  2.05s  A       |  
+  2.05s  A       | (1 row)
+  2.05s  A       | 
+  2.05s  A       | COMMIT;
+  2.06s  A       | COMMIT
+  2.07s  B       | psql:scenarios/S07_row_locks_B.sql:3: ERROR:  insufficient funds in 0012345601: balance 5000.00, requested 15000
+  2.07s  B       | COMMIT;
+  2.07s  B       | ROLLBACK
+  2.07s  B       | SELECT account_number, balance FROM customer_account_balance WHERE account_number = '0012345601';
+  2.08s  B       |  account_number | balance 
+  2.08s  B       | ----------------+---------
+  2.08s  B       |  0012345601     | 5000.00
+  2.08s  B       | (1 row)
+  2.08s  B       | 
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     |   5000.00
+ 0012345602     |   5000.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+ reference | transaction_type | status |  amount  | posted 
+-----------+------------------+--------+----------+--------
+ WDR-A     | WITHDRAWAL       | POSTED | 15000.00 | t
+

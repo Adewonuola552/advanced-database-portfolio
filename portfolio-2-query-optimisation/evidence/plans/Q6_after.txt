@@ -9,14 +9,14 @@ SELECT reference, transaction_type, amount, currency_code, created_at
 
                                                                          QUERY PLAN                                                                         
 ------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=0.28..376.28 rows=100 width=40) (actual time=0.041..0.146 rows=100 loops=1)
+ Limit  (cost=0.28..374.93 rows=100 width=40) (actual time=0.039..0.142 rows=100 loops=1)
    Buffers: shared hit=98
-   ->  Index Scan using idx_ft_pending_created on financial_transaction  (cost=0.28..3091.02 rows=822 width=40) (actual time=0.019..0.084 rows=100 loops=1)
+   ->  Index Scan using idx_ft_pending_created on financial_transaction  (cost=0.28..3338.46 rows=891 width=40) (actual time=0.016..0.082 rows=100 loops=1)
          Index Cond: (created_at < '2026-10-01 01:00:00+01'::timestamp with time zone)
          Buffers: shared hit=98
  Planning:
    Buffers: shared hit=168
- Planning Time: 1.490 ms
- Execution Time: 0.226 ms
+ Planning Time: 1.357 ms
+ Execution Time: 0.221 ms
 (9 rows)
 

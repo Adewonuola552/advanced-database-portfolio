@@ -9,25 +9,25 @@ SELECT reference, transaction_type, amount, currency_code, created_at
 
                                                                      QUERY PLAN                                                                      
 -----------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=12678.76..12690.43 rows=100 width=39) (actual time=27.807..30.675 rows=100 loops=1)
-   Buffers: shared hit=3063 read=5332
-   ->  Gather Merge  (cost=12678.76..12770.24 rows=784 width=39) (actual time=27.756..30.536 rows=100 loops=1)
+ Limit  (cost=12682.58..12694.25 rows=100 width=40) (actual time=30.359..33.695 rows=100 loops=1)
+   Buffers: shared hit=2792 read=5603
+   ->  Gather Merge  (cost=12682.58..12797.39 rows=984 width=40) (actual time=30.303..33.549 rows=100 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=3063 read=5332
-         ->  Sort  (cost=11678.74..11679.72 rows=392 width=39) (actual time=21.240..21.244 rows=33 loops=3)
+         Buffers: shared hit=2792 read=5603
+         ->  Sort  (cost=11682.56..11683.79 rows=492 width=40) (actual time=22.934..22.937 rows=33 loops=3)
                Sort Key: created_at
                Sort Method: top-N heapsort  Memory: 38kB
-               Buffers: shared hit=3063 read=5332
+               Buffers: shared hit=2792 read=5603
                Worker 0:  Sort Method: quicksort  Memory: 25kB
                Worker 1:  Sort Method: quicksort  Memory: 25kB
-               ->  Parallel Seq Scan on financial_transaction  (cost=0.00..11663.76 rows=392 width=39) (actual time=12.131..21.010 rows=312 loops=3)
+               ->  Parallel Seq Scan on financial_transaction  (cost=0.00..11663.76 rows=492 width=40) (actual time=13.026..22.728 rows=312 loops=3)
                      Filter: ((created_at < '2026-10-01 01:00:00+01'::timestamp with time zone) AND ((status)::text = 'PENDING'::text))
                      Rows Removed by Filter: 177968
-                     Buffers: shared hit=2989 read=5332
+                     Buffers: shared hit=2718 read=5603
  Planning:
    Buffers: shared hit=138
- Planning Time: 1.226 ms
- Execution Time: 30.930 ms
+ Planning Time: 1.223 ms
+ Execution Time: 33.949 ms
 (20 rows)
 

@@ -1,0 +1,47 @@
+Scenario S10_deadlock: PROBLEM: opposite transfers that lock accounts in request order deadlock
+Expected: PostgreSQL detects the deadlock (SQLSTATE 40P01) and aborts one transfer; the other commits
+Result:   PASS
+
+Sessions: A starts at 0.0s, B starts at 0.3s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | A: transfers 1,000 Amina -> Tunde, locking Amina first, then Tunde
+  0.03s  A | BEGIN;
+  0.03s  A | BEGIN
+  0.03s  A | SELECT unordered_transfer('TRF-A', '0012345601', '0012345602', 1000, 1.5) IS NOT NULL AS posted;
+  0.04s  A | psql:scenarios/S10_deadlock_A.sql:3: NOTICE:  TRF-A locked 0012345601 at 13:21:04.005
+  0.36s  B | B: transfers 1,000 Tunde -> Amina, locking Tunde first, then Amina
+  0.36s  B | BEGIN;
+  0.37s  B | BEGIN
+  0.37s  B | SELECT unordered_transfer('TRF-B', '0012345602', '0012345601', 1000, 1.5) IS NOT NULL AS posted;
+  0.38s  B | psql:scenarios/S10_deadlock_B.sql:3: NOTICE:  TRF-B locked 0012345602 at 13:21:04.347
+  1.54s  A | psql:scenarios/S10_deadlock_A.sql:3: NOTICE:  TRF-A now requesting lock on 0012345602
+  1.89s  B | psql:scenarios/S10_deadlock_B.sql:3: NOTICE:  TRF-B now requesting lock on 0012345601
+  2.62s  A | psql:scenarios/S10_deadlock_A.sql:3: ERROR:  deadlock detected
+  2.62s  A | DETAIL:  Process 92973 waits for ShareLock on transaction 81374; blocked by process 92994.
+  2.62s  A | Process 92994 waits for ShareLock on transaction 81373; blocked by process 92973.
+  2.62s  A | HINT:  See server log for query details.
+  2.62s  A | COMMIT;
+  2.62s  A | ROLLBACK
+  2.66s  B |  posted 
+  2.66s  B | --------
+  2.66s  B |  t
+  2.66s  B | (1 row)
+  2.66s  B | 
+  2.66s  B | COMMIT;
+  2.66s  B | COMMIT
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     |  21000.00
+ 0012345602     |   4000.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+ reference | transaction_type | status | amount  | posted 
+-----------+------------------+--------+---------+--------
+ TRF-B     | TRANSFER         | POSTED | 1000.00 | t
+

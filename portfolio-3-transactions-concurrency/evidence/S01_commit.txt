@@ -1,0 +1,95 @@
+Scenario S01_commit: COMMIT: a transfer and its reversal are posted and become permanent
+Expected: Amina 20,000 -> 15,000 after the transfer, back to 20,000 after the reversal; both transactions remain in the ledger
+Result:   PASS
+
+Sessions: A starts at 0.0s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | --- Balances before
+  0.03s  A | SELECT account_number, balance FROM customer_account_balance WHERE account_number IN ('0012345601', '0012345602') ORDER BY 1;
+  0.04s  A |  account_number | balance  
+  0.04s  A | ----------------+----------
+  0.04s  A |  0012345601     | 20000.00
+  0.04s  A |  0012345602     |  5000.00
+  0.04s  A | (2 rows)
+  0.04s  A | 
+  0.04s  A | --- Amina transfers 5,000 to Tunde. The procedure writes the transaction, two ledger legs and an audit record.
+  0.04s  A | BEGIN;
+  0.04s  A | BEGIN
+  0.04s  A | SELECT post_transfer('req-1001', 'TRF-1001', '0012345601', '0012345602', 5000, 'amina.mobile-app') IS NOT NULL AS posted;
+  0.05s  A |  posted 
+  0.05s  A | --------
+  0.05s  A |  t
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | COMMIT;
+  0.05s  A | COMMIT
+  0.05s  A | --- Balances after COMMIT
+  0.05s  A | SELECT account_number, balance FROM customer_account_balance WHERE account_number IN ('0012345601', '0012345602') ORDER BY 1;
+  0.05s  A |  account_number | balance  
+  0.05s  A | ----------------+----------
+  0.05s  A |  0012345601     | 15000.00
+  0.05s  A |  0012345602     | 10000.00
+  0.05s  A | (2 rows)
+  0.05s  A | 
+  0.05s  A | --- What the COMMIT made permanent
+  0.05s  A | SELECT ft.reference, ft.transaction_type, ft.status, le.line_number, a.account_number, le.entry_type, le.amount
+  0.05s  A |   FROM financial_transaction ft JOIN ledger_entry le USING (transaction_id) JOIN account a USING (account_id)
+  0.05s  A |  WHERE ft.reference = 'TRF-1001' ORDER BY le.line_number;
+  0.05s  A |  reference | transaction_type | status | line_number | account_number | entry_type | amount  
+  0.05s  A | -----------+------------------+--------+-------------+----------------+------------+---------
+  0.05s  A |  TRF-1001  | TRANSFER         | POSTED |           1 | 0012345601     | DEBIT      | 5000.00
+  0.05s  A |  TRF-1001  | TRANSFER         | POSTED |           2 | 0012345602     | CREDIT     | 5000.00
+  0.05s  A | (2 rows)
+  0.05s  A | 
+  0.05s  A | SELECT actor_identifier, action, details FROM audit_log WHERE details->>'reference' = 'TRF-1001';
+  0.05s  A |  actor_identifier |     action      |                                                                 details                                                                 
+  0.05s  A | ------------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------
+  0.05s  A |  amina.mobile-app | TRANSFER_POSTED | {"amount": 5000, "isolation": "read committed", "reference": "TRF-1001", "debit_account": "0012345601", "credit_account": "0012345602"}
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | --- A finance officer reverses the transfer. The reversal is a new transaction; the original is kept.
+  0.05s  A | BEGIN;
+  0.05s  A | BEGIN
+  0.05s  A | SELECT reverse_transaction('TRF-1001', 'req-rev-1001', 'finance.officer1') IS NOT NULL AS posted;
+  0.05s  A |  posted 
+  0.05s  A | --------
+  0.05s  A |  t
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | COMMIT;
+  0.05s  A | COMMIT
+  0.05s  A | SELECT ft.reference, ft.transaction_type, le.line_number, a.account_number, le.entry_type, le.amount
+  0.05s  A |   FROM financial_transaction ft JOIN ledger_entry le USING (transaction_id) JOIN account a USING (account_id)
+  0.05s  A |  WHERE ft.reference IN ('TRF-1001', 'REV-TRF-1001') ORDER BY ft.created_at, le.line_number;
+  0.05s  A |   reference   | transaction_type | line_number | account_number | entry_type | amount  
+  0.05s  A | --------------+------------------+-------------+----------------+------------+---------
+  0.05s  A |  TRF-1001     | TRANSFER         |           1 | 0012345601     | DEBIT      | 5000.00
+  0.05s  A |  TRF-1001     | TRANSFER         |           2 | 0012345602     | CREDIT     | 5000.00
+  0.05s  A |  REV-TRF-1001 | REVERSAL         |           1 | 0012345602     | DEBIT      | 5000.00
+  0.05s  A |  REV-TRF-1001 | REVERSAL         |           2 | 0012345601     | CREDIT     | 5000.00
+  0.05s  A | (4 rows)
+  0.05s  A | 
+  0.05s  A | SELECT account_number, balance FROM customer_account_balance WHERE account_number IN ('0012345601', '0012345602') ORDER BY 1;
+  0.05s  A |  account_number | balance  
+  0.05s  A | ----------------+----------
+  0.05s  A |  0012345601     | 20000.00
+  0.05s  A |  0012345602     |  5000.00
+  0.05s  A | (2 rows)
+  0.05s  A | 
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     |  20000.00
+ 0012345602     |   5000.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+  reference   | transaction_type | status | amount  | posted 
+--------------+------------------+--------+---------+--------
+ TRF-1001     | TRANSFER         | POSTED | 5000.00 | t
+ REV-TRF-1001 | REVERSAL         | POSTED | 5000.00 | t
+

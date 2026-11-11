@@ -1,0 +1,52 @@
+
+=== 0. Start three members and initiate the replica set
+replica set clearpay-ha: 3 voting members, majority = 2, electionTimeoutMillis = 10000
+    127.0.0.1:27201  PRIMARY     health 1
+    127.0.0.1:27202  SECONDARY   health 1  syncing from 127.0.0.1:27201
+    127.0.0.1:27203  SECONDARY   health 1  syncing from 127.0.0.1:27201
+
+=== 1. Load ClearPay accounts and write with different write concerns
+  300 inserts with { w: 1, j: true }: 10.45 ms per write
+  300 inserts with { w: "majority", j: true }: 11.28 ms per write
+  300 inserts with { w: 3, j: true }: 14.31 ms per write
+
+=== 2. A secondary that falls behind serves stale reads
+--- 27203 is locked with fsyncLock, so it stops applying replicated writes (a slow or overloaded secondary)
+    27203 locked
+  primary: debit of 5,000 acknowledged by a majority (primary + 27202): modified 1
+  read on 27201 (primary): Amina balance 15000
+  read on 27202 (secondary): Amina balance 15000
+  read on 27203 (secondary): Amina balance 20000
+--- a write that needs all three members cannot be acknowledged while 27203 is behind
+  w: 3 -> WriteConcernFailed: waiting for replication timed out
+    27203 unlocked
+  read on 27203 after it caught up: Amina balance 15000
+
+=== 3. Failover: the primary crashes while a client is writing
+--- the client posts one ledger event every 100 ms with { w: majority } and retryable writes
+    13:00:27 UTC  27201 (primary) killed with SIGKILL
+    13:00:38 UTC  new primary elected: 10.8 s after the crash
+    127.0.0.1:27201  (not reachable/healthy)  health 0
+    127.0.0.1:27202  SECONDARY   health 1  syncing from 127.0.0.1:27203
+    127.0.0.1:27203  PRIMARY     health 1
+  client: 151 writes attempted, 151 succeeded, 0 failed
+  client: write at 13:00:27.304 UTC took 10128 ms and succeeded (held until a new primary was elected)
+  client: documents stored = 151 (no write lost or duplicated: seq is unique = true)
+
+=== 4. The old primary returns
+--- 27201 restarts, rejoins as a secondary, catches up, and (priority 2) takes over as primary again
+    127.0.0.1:27201  PRIMARY     health 1
+    127.0.0.1:27202  SECONDARY   health 1  syncing from 127.0.0.1:27203
+    127.0.0.1:27203  SECONDARY   health 1  syncing from 127.0.0.1:27201
+
+=== 5. Loss of majority: two of three members down
+--- 27202 and 27203 killed; 27201 can see only itself (1 of 3 votes, majority is 2)
+    127.0.0.1:27201  SECONDARY   health 1
+    127.0.0.1:27202  (not reachable/healthy)  health 0
+    127.0.0.1:27203  (not reachable/healthy)  health 0
+  write: NotWritablePrimary: not primary
+  read with readPreference secondaryPreferred still works: Amina balance 15000
+--- 27202 back: two of three members, a majority again
+    127.0.0.1:27201  PRIMARY     health 1
+    127.0.0.1:27202  SECONDARY   health 1  syncing from 127.0.0.1:27201
+    127.0.0.1:27203  (not reachable/healthy)  health 0

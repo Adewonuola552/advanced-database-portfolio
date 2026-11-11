@@ -1,0 +1,189 @@
+
+=== 0. Build the cluster
+--- node1 loaded with the Portfolio 1 schema, the Portfolio 3 procedures and fixture
+--- node2 created with pg_basebackup and started as a hot standby
+
+=== 1. Replication status
+--- node1: connected standbys
+ application_name |   state   | sync_state | sent_lsn  | replay_lsn 
+------------------+-----------+------------+-----------+------------
+ node2            | streaming | async      | 0/3000000 | 0/3000000
+(1 row)
+
+--- node2: is it a standby, and where does it stream from?
+ standby |  status   | sender_host | sender_port | slot_name  
+---------+-----------+-------------+-------------+------------
+ t       | streaming | 127.0.0.1   |       55432 | node2_slot
+(1 row)
+
+
+=== 2. A transfer committed on node1 appears on node2
+ posted 
+--------
+ t
+(1 row)
+
+ node  | account_number | balance  
+-------+----------------+----------
+ node1 | 0012345601     | 15000.00
+ node1 | 0012345602     | 10000.00
+(2 rows)
+
+ node  | account_number | balance  
+-------+----------------+----------
+ node2 | 0012345601     | 15000.00
+ node2 | 0012345602     | 10000.00
+(2 rows)
+
+
+=== 3. The standby is read-only
+ transaction_read_only 
+-----------------------
+ on
+(1 row)
+
+ERROR:  cannot execute SELECT FOR UPDATE in a read-only transaction
+
+=== 4. Asynchronous replication: a lagging standby serves a stale balance
+--- node2 replay is paused, to stand in for a standby that is behind (slow disk or network)
+ posted 
+--------
+ t
+(1 row)
+
+--- COMMIT returned on node1. Amina's app now reads from node2:
+ node  | account_number | balance  
+-------+----------------+----------
+ node1 | 0012345601     | 14000.00
+ node1 | 0012345602     | 11000.00
+(2 rows)
+
+ node  | account_number | balance  
+-------+----------------+----------
+ node2 | 0012345601     | 15000.00
+ node2 | 0012345602     | 10000.00
+(2 rows)
+
+ application_name | bytes_not_yet_applied 
+------------------+-----------------------
+ node2            |                  9624
+(1 row)
+
+--- replay resumed
+ node  | account_number | balance  
+-------+----------------+----------
+ node2 | 0012345601     | 14000.00
+ node2 | 0012345602     | 11000.00
+(2 rows)
+
+
+=== 5. Commit latency: asynchronous vs synchronous replication (pgbench, 500 single-deposit transactions each)
+async standby, synchronous_commit=on (local flush)         latency average = 0.425 ms tps = 2351.060328 (without initial connection time) 
+sync standby,  synchronous_commit=remote_write             latency average = 0.583 ms tps = 1714.995232 (without initial connection time) 
+sync standby,  synchronous_commit=on (standby flush)       latency average = 0.631 ms tps = 1585.615298 (without initial connection time) 
+sync standby,  synchronous_commit=remote_apply (visible)   latency average = 0.543 ms tps = 1840.956119 (without initial connection time) 
+ application_name | sync_state 
+------------------+------------
+ node2            | sync
+(1 row)
+
+
+=== 6. Synchronous replication with the standby down: commits wait (consistency over availability)
+--- node2 stopped; node1 still requires node2 to confirm every commit
+--- 3 seconds later, the client is still waiting:
+ pid  | state  | wait_event_type | wait_event |  waiting_for   |                  query                   
+------+--------+-----------------+------------+----------------+------------------------------------------
+ 6635 | active | IPC             | SyncRep    | 00:00:03.00477 | SELECT post_transfer('p5-req-3', 'P5-TRF
+(1 row)
+
+--- an operator cancels the wait
+--- what the client received:
+WARNING:  canceling wait for synchronous replication due to user request
+DETAIL:  The transaction has already committed locally, but might not have been replicated to the standby.
+ posted 
+--------
+ t
+(1 row)
+
+--- the transfer is nevertheless committed on node1:
+ reference | status 
+-----------+--------
+ P5-TRF-3  | POSTED
+(1 row)
+
+--- node2 restarted and caught up:
+ reference | status 
+-----------+--------
+ P5-TRF-3  | POSTED
+(1 row)
+
+
+=== 7. Failover: node1 crashes, node2 is promoted
+ posted 
+--------
+ t
+(1 row)
+
+--- state on node1 just before the crash (synchronous replication is on, so node2 has every commit)
+ transactions | total_amount | last_p5  
+--------------+--------------+----------
+         2007 |    133750.00 | P5-TRF-4
+(1 row)
+
+ node  | account_number | balance  
+-------+----------------+----------
+ node1 | 0012345601     | 13250.00
+ node1 | 0012345602     | 11750.00
+(2 rows)
+
+--- node1 killed (pg_ctl stop -m immediate: no shutdown checkpoint, as in a crash)
+ERROR:  cannot execute SELECT FOR UPDATE in a read-only transaction
+--- promote node2
+ promoted 
+----------
+ t
+(1 row)
+
+crash to writable primary: 0.34 s (excluding failure detection, which an operator or tool such as Patroni would add)
+ standby | timeline_id 
+---------+-------------
+ f       |           2
+(1 row)
+
+--- node2 has every transaction node1 had (RPO = 0):
+ transactions | total_amount | last_p5  
+--------------+--------------+----------
+         2007 |    133750.00 | P5-TRF-4
+(1 row)
+
+ node  | account_number | balance  
+-------+----------------+----------
+ node2 | 0012345601     | 13250.00
+ node2 | 0012345602     | 11750.00
+(2 rows)
+
+--- node2 accepts writes
+ posted 
+--------
+ t
+(1 row)
+
+
+=== 8. The old primary rejoins as a standby (pg_rewind)
+--- node1 must not start as a primary again (split brain). pg_rewind discards its divergent WAL:
+pg_rewind: executing "/usr/local/Cellar/postgresql@15/15.13/bin/postgres" for target server to complete crash recovery
+pg_rewind: servers diverged at WAL location 0/33F89A0 on timeline 1
+pg_rewind: rewinding from last common checkpoint at 0/2000060 on timeline 1
+pg_rewind: Done!
+--- node2 (new primary): connected standbys
+ application_name |   state   | sync_state 
+------------------+-----------+------------
+ node1            | streaming | async
+(1 row)
+
+--- node1 (now a standby) has P5-TRF-5, which was written after the failover:
+ standby | p5_trf_5 
+---------+----------
+ t       | POSTED
+(1 row)
+

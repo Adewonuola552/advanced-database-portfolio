@@ -1,0 +1,100 @@
+
+=== Collection sizes after import
+  collection      documents  avg doc bytes  storage MB  index MB
+  customers           20000            337   1.9140625  4.9140625
+  accounts            30002            257  2.72265625  4.11328125
+  transactions       534841            458   67.296875  94.96875
+  audit_events       100000              -   2.8203125  0.83984375
+
+=== Q1. Customer profile with accounts: one document, no join
+  plan FETCH <- IXSCAN(email_1)
+      returned 1, index keys examined 1, documents examined 1, server time 0 ms
+{
+  firstName: 'First1',
+  lastName: 'Last1',
+  email: 'customer00001@example.com',
+  accounts: [
+    {
+      accountId: UUID('1fbd30f4-8d57-476b-ab1b-0ccfb78c9af6'),
+      accountNumber: '0000000001',
+      currency: 'NGN',
+      status: 'ACTIVE'
+    },
+    {
+      accountId: UUID('ac762f0a-45fa-4d1d-b661-262c573a4113'),
+      accountNumber: '0000020001',
+      currency: 'NGN',
+      status: 'ACTIVE'
+    }
+  ]
+}
+
+=== Q2. Account statement: latest 20 posted transactions for one account
+  0000000001: 2640 posted transactions
+  0000020001: 28 posted transactions
+
+  BEFORE the index:
+    0000000001: median 249 ms over 5 runs
+      plan SORT <- COLLSCAN
+      returned 20, index keys examined 0, documents examined 534841, server time 264 ms
+    0000020001: median 248 ms over 5 runs
+      plan SORT <- COLLSCAN
+      returned 20, index keys examined 0, documents examined 534841, server time 253 ms
+
+  createIndex statement_idx: 1872 ms
+
+  AFTER the index:
+    0000000001: median 1 ms over 5 runs
+      plan LIMIT <- FETCH <- IXSCAN(statement_idx)
+      returned 20, index keys examined 20, documents examined 20, server time 0 ms
+    0000020001: median 1 ms over 5 runs
+      plan LIMIT <- FETCH <- IXSCAN(statement_idx)
+      returned 20, index keys examined 20, documents examined 20, server time 0 ms
+
+  First 5 lines of the statement for 0000020001:
+    2026-09-03T11:42:46  TXN00320065  TRANSFER    CREDIT  159.20
+    2026-08-02T15:08:35  TXN00373552  TRANSFER    DEBIT   4300.31
+    2026-07-11T13:34:49  TXN00199401  TRANSFER    CREDIT  466.45
+    2026-05-30T07:37:15  TXN00238545  TRANSFER    CREDIT  13522.37
+    2026-04-19T04:52:53  TXN00032334  TRANSFER    CREDIT  15928.07
+
+=== Q3. Monthly posted volume by type, NGN, 2026 (analytics)
+  median 365 ms over 5 runs (full collection scan; a reporting query like this belongs on a secondary, see Portfolio 5)
+    2026-01  DEPOSIT       3307  40410107.87
+    2026-01  REVERSAL       187  2822735.48
+    2026-01  TRANSFER     12910  165386568.39
+    2026-01  WITHDRAWAL    2241  27307557.42
+    2026-02  DEPOSIT       2957  37277304.01
+    2026-02  REVERSAL       162  1872498.88
+    2026-02  TRANSFER     11697  147986228.19
+    2026-02  WITHDRAWAL    2022  25467739.00
+    2026-03  DEPOSIT       3277  41003489.82
+    2026-03  REVERSAL       222  2786494.19
+    2026-03  TRANSFER     13109  161529247.49
+    2026-03  WITHDRAWAL    2190  28136206.64
+    ... (first three months shown)
+
+=== Q4. Graph: where did money from one account go? ($graphLookup over transfer links)
+  Built 338041 account-to-account edges from posted transfers in 11936 ms
+  One edge: {"transfers":1,"total":{"$numberDecimal":"15037.47"},"from":"0000014462","to":"0000010229"}
+  Money trail from flagged account 0000020001, following links that total at least 20000, up to 3 hops:
+  median 2 ms over 5 runs
+    hop 1:     3 links,     3 accounts reached, 72550.13 moved
+    hop 2:     9 links,     9 accounts reached, 320079.65 moved
+    hop 3:    46 links,    46 accounts reached, 1414818.44 moved
+  The first hop in detail:
+    0000020001 -> 0000018406  1 transfer(s), 27005.27
+    0000020001 -> 0000004148  1 transfer(s), 23720.28
+    0000020001 -> 0000026231  1 transfer(s), 21824.58
+
+=== Q5. Time-series: audit events per action per month (2026, finance officers)
+  median 3 ms over 5 runs
+    2026-01  REVERSAL_AUTHORISED  205
+    2026-02  REVERSAL_AUTHORISED  180
+    2026-03  REVERSAL_AUTHORISED  248
+    2026-04  REVERSAL_AUTHORISED  210
+
+  Storage: the same 100,000 events stored three ways
+    time-series, inserted in time order    storage   2888 KB     3003 buckets
+    time-series, inserted in random order  storage   3264 KB     5196 buckets
+    regular collection                     storage   5072 KB

@@ -1,0 +1,128 @@
+Scenario S02_rollback: ROLLBACK: explicit rollback, rollback after an error, and partial rollback to a savepoint
+Expected: TRF-2001, TRF-2002 and TRF-2003 leave no rows; in the payroll batch only the frozen account's payment is undone (Kemi 80,000, Amina 30,000, Chiamaka 10,000, Musa 0)
+Result:   PASS
+
+Sessions: A starts at 0.0s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | === Part 1: explicit ROLLBACK. Amina starts a 3,000 transfer to Chiamaka, then cancels it.
+  0.03s  A | BEGIN;
+  0.03s  A | BEGIN
+  0.03s  A | SELECT post_transfer('req-2001', 'TRF-2001', '0012345601', '0012345603', 3000, 'amina.mobile-app') IS NOT NULL AS posted;
+  0.04s  A |  posted 
+  0.04s  A | --------
+  0.04s  A |  t
+  0.04s  A | (1 row)
+  0.04s  A | 
+  0.04s  A | --- Inside the transaction the transfer is visible to this session
+  0.04s  A | SELECT account_number, balance FROM customer_account_balance WHERE account_number IN ('0012345601', '0012345603') ORDER BY 1;
+  0.05s  A |  account_number | balance  
+  0.05s  A | ----------------+----------
+  0.05s  A |  0012345601     | 17000.00
+  0.05s  A |  0012345603     |  3000.00
+  0.05s  A | (2 rows)
+  0.05s  A | 
+  0.05s  A | ROLLBACK;
+  0.05s  A | ROLLBACK
+  0.05s  A | --- After ROLLBACK: balances restored, and no transaction row exists
+  0.05s  A | SELECT account_number, balance FROM customer_account_balance WHERE account_number IN ('0012345601', '0012345603') ORDER BY 1;
+  0.05s  A |  account_number | balance  
+  0.05s  A | ----------------+----------
+  0.05s  A |  0012345601     | 20000.00
+  0.05s  A |  0012345603     |     0.00
+  0.05s  A | (2 rows)
+  0.05s  A | 
+  0.05s  A | SELECT count(*) AS rows_for_trf_2001 FROM financial_transaction WHERE reference = 'TRF-2001';
+  0.05s  A |  rows_for_trf_2001 
+  0.05s  A | -------------------
+  0.05s  A |                  0
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | === Part 2: an error aborts the whole transaction. The first transfer succeeds, the second exceeds the balance.
+  0.05s  A | BEGIN;
+  0.05s  A | BEGIN
+  0.05s  A | SELECT post_transfer('req-2002', 'TRF-2002', '0012345601', '0012345603', 3000, 'amina.mobile-app') IS NOT NULL AS posted;
+  0.05s  A |  posted 
+  0.05s  A | --------
+  0.05s  A |  t
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | SELECT post_transfer('req-2003', 'TRF-2003', '0012345601', '0012345602', 50000, 'amina.mobile-app') IS NOT NULL AS posted;
+  0.05s  A | psql:scenarios/S02_rollback_A.sql:14: ERROR:  insufficient funds in 0012345601: balance 17000.00, requested 50000
+  0.05s  A | --- Every later statement is refused until the transaction ends
+  0.05s  A | SELECT 1;
+  0.05s  A | psql:scenarios/S02_rollback_A.sql:16: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+  0.05s  A | --- COMMIT on an aborted transaction performs a ROLLBACK
+  0.05s  A | COMMIT;
+  0.05s  A | ROLLBACK
+  0.05s  A | SELECT account_number, balance FROM customer_account_balance WHERE account_number IN ('0012345601', '0012345602', '0012345603') ORDER BY 1;
+  0.05s  A |  account_number | balance  
+  0.05s  A | ----------------+----------
+  0.05s  A |  0012345601     | 20000.00
+  0.05s  A |  0012345602     |  5000.00
+  0.05s  A |  0012345603     |     0.00
+  0.05s  A | (3 rows)
+  0.05s  A | 
+  0.05s  A | SELECT count(*) AS rows_for_trf_2002_or_2003 FROM financial_transaction WHERE reference IN ('TRF-2002', 'TRF-2003');
+  0.05s  A |  rows_for_trf_2002_or_2003 
+  0.05s  A | ---------------------------
+  0.05s  A |                          0
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | === Part 3: SAVEPOINT. Kemi pays three staff 10,000 each in one batch. Musa's account is FROZEN.
+  0.05s  A |     Only Musa's payment is rolled back; the batch still commits the other two.
+  0.05s  A | BEGIN;
+  0.05s  A | BEGIN
+  0.05s  A | SAVEPOINT pay_amina;
+  0.05s  A | SAVEPOINT
+  0.05s  A | SELECT post_transfer('pay-2026-11-amina', 'PAY-AMINA', '0012345604', '0012345601', 10000, 'kemi.payroll') IS NOT NULL AS posted;
+  0.05s  A |  posted 
+  0.05s  A | --------
+  0.05s  A |  t
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | RELEASE SAVEPOINT pay_amina;
+  0.05s  A | RELEASE
+  0.05s  A | SAVEPOINT pay_musa;
+  0.05s  A | SAVEPOINT
+  0.05s  A | SELECT post_transfer('pay-2026-11-musa', 'PAY-MUSA', '0012345604', '0012345605', 10000, 'kemi.payroll') IS NOT NULL AS posted;
+  0.05s  A | psql:scenarios/S02_rollback_A.sql:29: ERROR:  account 0012345605 is FROZEN
+  0.05s  A | ROLLBACK TO SAVEPOINT pay_musa;
+  0.05s  A | ROLLBACK
+  0.05s  A | SAVEPOINT pay_chiamaka;
+  0.05s  A | SAVEPOINT
+  0.05s  A | SELECT post_transfer('pay-2026-11-chiamaka', 'PAY-CHIAMAKA', '0012345604', '0012345603', 10000, 'kemi.payroll') IS NOT NULL AS posted;
+  0.05s  A |  posted 
+  0.05s  A | --------
+  0.05s  A |  t
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | RELEASE SAVEPOINT pay_chiamaka;
+  0.05s  A | RELEASE
+  0.05s  A | COMMIT;
+  0.05s  A | COMMIT
+  0.05s  A | SELECT account_number, balance FROM customer_account_balance WHERE account_number IN ('0012345601', '0012345603', '0012345604', '0012345605') ORDER BY 1;
+  0.05s  A |  account_number | balance  
+  0.05s  A | ----------------+----------
+  0.05s  A |  0012345601     | 30000.00
+  0.05s  A |  0012345603     | 10000.00
+  0.05s  A |  0012345604     | 80000.00
+  0.05s  A |  0012345605     |     0.00
+  0.05s  A | (4 rows)
+  0.05s  A | 
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number | balance  
+----------------+----------
+ 0012345601     | 30000.00
+ 0012345602     |  5000.00
+ 0012345603     | 10000.00
+ 0012345604     | 80000.00
+ 0012345605     |     0.00
+
+  reference   | transaction_type | status |  amount  | posted 
+--------------+------------------+--------+----------+--------
+ PAY-AMINA    | TRANSFER         | POSTED | 10000.00 | t
+ PAY-CHIAMAKA | TRANSFER         | POSTED | 10000.00 | t
+

@@ -1,0 +1,99 @@
+
+=== Setup: register three demo customers (customer + account written in one transaction)
+    deposit 20,000 to Amina: OK -> f3113227-74aa-4e90-b7d0-e7441c79a64c
+    0012345601  ACTIVE  balance 20000
+    0012345602  ACTIVE  balance 0
+    0012345605  FROZEN  balance 0
+    Musa's profile, one read with no join (status copied into the customer document):
+{
+  firstName: 'Musa',
+  accounts: [
+    {
+      accountId: UUID('4a2abc56-4178-4123-a46f-7be82598431f'),
+      accountNumber: '0012345605',
+      currency: 'NGN',
+      status: 'FROZEN'
+    }
+  ]
+}
+
+=== 1. COMMIT: Amina transfers 5,000 to Tunde
+    transfer: OK -> 179af45c-831e-42df-a942-43c9507593fb
+    0012345601  ACTIVE  balance 15000
+    0012345602  ACTIVE  balance 5000
+    The transaction document, with its ledger legs embedded:
+{
+  _id: UUID('179af45c-831e-42df-a942-43c9507593fb'),
+  reference: 'P4-TRF-1001',
+  idempotencyKey: 'p4-req-1001',
+  type: 'TRANSFER',
+  amount: Decimal128('5000'),
+  currency: 'NGN',
+  status: 'POSTED',
+  createdAt: ISODate('2026-11-11T12:40:04.975Z'),
+  postedAt: ISODate('2026-11-11T12:40:04.975Z'),
+  postedBy: 'amina.mobile-app',
+  entries: [
+    {
+      line: 1,
+      accountId: UUID('5f174143-d2f7-46b6-b246-fa0138b89d53'),
+      accountNumber: '0012345601',
+      type: 'DEBIT',
+      amount: Decimal128('5000')
+    },
+    {
+      line: 2,
+      accountId: UUID('d5bb1d1c-a7f2-4f80-9142-2ecbf95747d8'),
+      accountNumber: '0012345602',
+      type: 'CREDIT',
+      amount: Decimal128('5000')
+    }
+  ]
+}
+
+=== 2. ROLLBACK: insufficient funds aborts the transaction; nothing is written
+    transfer 50,000: rejected: insufficient funds in 0012345601: balance 15000, requested 50000
+    0012345601  ACTIVE  balance 15000
+    0012345602  ACTIVE  balance 5000
+    documents with reference P4-TRF-1002: 0
+
+=== 3. Eligibility: a frozen account cannot receive a transfer
+    transfer to Musa: rejected: account 0012345605 is FROZEN
+
+=== 4. Idempotency: a retry returns the original; a reused key with new details is rejected
+    idempotency key p4-req-1001 already processed as P4-TRF-1001: returning it
+    retry of p4-req-1001: OK -> 179af45c-831e-42df-a942-43c9507593fb
+    p4-req-1001 with 9,999: rejected: idempotency key p4-req-1001 was already used for a different request (P4-TRF-1001)
+    transactions with key p4-req-1001: 1
+
+=== 5. Validation: the database rejects bad documents even if application code is bypassed
+    insert an unbalanced POSTED transaction (debit 5,000, credit 4,000): error (code 121): Document failed validation  [failed: $expr]
+    set a customer balance below zero directly: error (code 121): Document failed validation  [failed: $expr]
+    insert a transaction with a negative amount: error (code 121): Document failed validation  [failed: $jsonSchema on amount]
+
+=== 6. Key-value counter: daily withdrawal limit of 10000
+    withdraw 6,000: OK -> 0e80d916-d8f3-4a94-8127-bfbc4d67c2e8
+    withdraw another 6,000: rejected: daily withdrawal limit 10000 exceeded for 0012345601 (would be 12000)
+    The counter (the rejected withdrawal's increment was rolled back with its transaction):
+    0012345601|2026-11-11  total 6000  count 1  expiresAt 2026-11-13T00:00:00.000Z
+    0012345601  ACTIVE  balance 9000
+
+=== 7. Concurrency: two transfers from Amina (balance 9,000) of 8,000 each, at the same time
+    Session A and session B each start a transaction and run the posting steps.
+    A: posted ed8911b0-c730-4764-906a-aeec8127a640 (not yet committed)
+    B: WriteConflict (code 112): Caused by :: Write conflict during plan execution and yielding is disabled. :: Please retry your operation or multi-document transaction.  [labels: TransientTransactionError]
+    A: committed
+    B's client sees TransientTransactionError and retries the whole transaction:
+    B retry: rejected: insufficient funds in 0012345601: balance 1000, requested 8000
+    0012345601  ACTIVE  balance 1000
+    0012345602  ACTIVE  balance 13000
+
+=== 8. Reversal: a new REVERSAL document; a second reversal is blocked by the partial unique index
+    reverse P4-TRF-1001: OK -> cb9b4c3e-c30c-4a97-a1ad-c945ca61442f
+    reverse it again with a new key: error (code 11000): E11000 duplicate key error collection: clearpay.transactions index: reversalOf_1 dup key: { reversalOf: UUID("179af45c-831e-42df-a942-43c9507593fb") }
+    0012345601  ACTIVE  balance 6000
+    0012345602  ACTIVE  balance 8000
+
+=== Final check: every demo account's stored balance equals the sum of its posted legs
+    0012345601  stored 6000  from legs 6000  MATCH
+    0012345602  stored 8000  from legs 8000  MATCH

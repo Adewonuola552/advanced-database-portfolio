@@ -1,0 +1,89 @@
+Scenario S09_repeatable_read_pitfall: PITFALL: under REPEATABLE READ, row locks alone still allow the double spend
+Expected: With the safety guard switched off, both locked withdrawals post (balance -10,000); with the guard on, the procedure refuses to run under REPEATABLE READ
+Result:   PASS
+
+Sessions: A starts at 0.0s, B starts at 0.5s, C starts at 4.6s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | A: the SAFE post_withdrawal (row locks), under REPEATABLE READ, with the guard switched off for this demo
+  0.03s  A | SET clearpay.unsafe_allow_repeatable_read = on;
+  0.03s  A | SET
+  0.03s  A | BEGIN ISOLATION LEVEL REPEATABLE READ;
+  0.03s  A | BEGIN
+  0.03s  A | SELECT post_withdrawal('req-A-9001', 'WDR-A', '0012345601', 15000, 'atm') IS NOT NULL AS posted;
+  0.05s  A |  posted 
+  0.05s  A | --------
+  0.05s  A |  t
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | A: balance as this transaction's snapshot sees it, including its own withdrawal
+  0.05s  A | SELECT balance AS amina_seen_by_A FROM customer_account_balance WHERE account_number = '0012345601';
+  0.05s  A |  amina_seen_by_a 
+  0.05s  A | -----------------
+  0.05s  A |          5000.00
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | SELECT pg_sleep(2);
+  0.57s  B | B: the SAFE post_withdrawal (row locks), under REPEATABLE READ, with the guard switched off for this demo
+  0.57s  B | SET clearpay.unsafe_allow_repeatable_read = on;
+  0.58s  B | SET
+  0.58s  B | BEGIN ISOLATION LEVEL REPEATABLE READ;
+  0.58s  B | BEGIN
+  0.58s  B | SELECT post_withdrawal('req-B-9001', 'WDR-B', '0012345601', 15000, 'atm') IS NOT NULL AS posted;
+  2.05s  A |  pg_sleep 
+  2.05s  A | ----------
+  2.05s  A |  
+  2.05s  A | (1 row)
+  2.05s  A | 
+  2.05s  A | COMMIT;
+  2.06s  A | COMMIT
+  2.09s  B |  posted 
+  2.09s  B | --------
+  2.09s  B |  t
+  2.09s  B | (1 row)
+  2.09s  B | 
+  2.09s  B | B: balance as this transaction's snapshot sees it, including its own withdrawal
+  2.09s  B | SELECT balance AS amina_seen_by_B FROM customer_account_balance WHERE account_number = '0012345601';
+  2.09s  B |  amina_seen_by_b 
+  2.09s  B | -----------------
+  2.09s  B |          5000.00
+  2.09s  B | (1 row)
+  2.09s  B | 
+  2.09s  B | SELECT pg_sleep(2);
+  4.10s  B |  pg_sleep 
+  4.10s  B | ----------
+  4.10s  B |  
+  4.10s  B | (1 row)
+  4.10s  B | 
+  4.10s  B | COMMIT;
+  4.10s  B | COMMIT
+  4.68s  C | C: after both commit, the balance is negative
+  4.68s  C | SELECT account_number, balance FROM customer_account_balance WHERE account_number = '0012345601';
+  4.69s  C |  account_number |  balance  
+  4.69s  C | ----------------+-----------
+  4.69s  C |  0012345601     | -10000.00
+  4.69s  C | (1 row)
+  4.69s  C | 
+  4.69s  C | C: with the guard on (the normal setting), the procedure refuses REPEATABLE READ
+  4.69s  C | BEGIN ISOLATION LEVEL REPEATABLE READ;
+  4.70s  C | BEGIN
+  4.70s  C | SELECT post_withdrawal('req-C-9003', 'WDR-C', '0012345602', 100, 'atm') IS NOT NULL AS posted;
+  4.71s  C | psql:scenarios/S09_repeatable_read_pitfall_C.sql:5: ERROR:  postings must run under READ COMMITTED or SERIALIZABLE, not REPEATABLE READ
+  4.71s  C | ROLLBACK;
+  4.71s  C | ROLLBACK
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     | -10000.00
+ 0012345602     |   5000.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+ reference | transaction_type | status |  amount  | posted 
+-----------+------------------+--------+----------+--------
+ WDR-A     | WITHDRAWAL       | POSTED | 15000.00 | t
+ WDR-B     | WITHDRAWAL       | POSTED | 15000.00 | t
+

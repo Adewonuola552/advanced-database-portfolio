@@ -6,36 +6,36 @@ SELECT account_number, currency_code, balance
 
                                                                                   QUERY PLAN                                                                                   
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Subquery Scan on customer_account_balance  (cost=197.00..197.55 rows=1 width=35) (actual time=0.361..0.362 rows=1 loops=1)
+ Subquery Scan on customer_account_balance  (cost=196.94..197.49 rows=1 width=35) (actual time=0.626..0.630 rows=1 loops=1)
    Buffers: shared hit=114
-   ->  GroupAggregate  (cost=197.00..197.54 rows=1 width=51) (actual time=0.359..0.360 rows=1 loops=1)
+   ->  GroupAggregate  (cost=196.94..197.48 rows=1 width=51) (actual time=0.609..0.612 rows=1 loops=1)
          Group Key: a.account_id
          Buffers: shared hit=114
-         ->  Sort  (cost=197.00..197.08 rows=35 width=51) (actual time=0.330..0.332 rows=21 loops=1)
+         ->  Sort  (cost=196.94..197.03 rows=35 width=51) (actual time=0.519..0.523 rows=21 loops=1)
                Sort Key: a.account_id
                Sort Method: quicksort  Memory: 26kB
                Buffers: shared hit=114
-               ->  Nested Loop Left Join  (cost=5.47..196.10 rows=35 width=51) (actual time=0.092..0.293 rows=21 loops=1)
+               ->  Nested Loop Left Join  (cost=5.47..196.04 rows=35 width=51) (actual time=0.150..0.441 rows=21 loops=1)
                      Buffers: shared hit=111
-                     ->  Nested Loop Left Join  (cost=5.05..179.21 rows=35 width=60) (actual time=0.072..0.111 rows=21 loops=1)
+                     ->  Nested Loop Left Join  (cost=5.05..179.16 rows=35 width=60) (actual time=0.117..0.188 rows=21 loops=1)
                            Buffers: shared hit=27
-                           ->  Index Scan using account_number_unique on account a  (cost=0.29..8.31 rows=1 width=31) (actual time=0.024..0.024 rows=1 loops=1)
+                           ->  Index Scan using account_number_unique on account a  (cost=0.29..8.31 rows=1 width=31) (actual time=0.034..0.036 rows=1 loops=1)
                                  Index Cond: ((account_number)::text = '0000015001'::text)
                                  Filter: ((account_kind)::text = 'CUSTOMER'::text)
                                  Buffers: shared hit=3
-                           ->  Bitmap Heap Scan on ledger_entry le  (cost=4.76..170.48 rows=43 width=45) (actual time=0.029..0.063 rows=21 loops=1)
+                           ->  Bitmap Heap Scan on ledger_entry le  (cost=4.76..170.42 rows=43 width=45) (actual time=0.040..0.102 rows=21 loops=1)
                                  Recheck Cond: (account_id = a.account_id)
                                  Heap Blocks: exact=21
                                  Buffers: shared hit=24
-                                 ->  Bitmap Index Scan on idx_ledger_account_created  (cost=0.00..4.75 rows=43 width=0) (actual time=0.014..0.014 rows=21 loops=1)
+                                 ->  Bitmap Index Scan on idx_ledger_account_created  (cost=0.00..4.75 rows=43 width=0) (actual time=0.019..0.019 rows=21 loops=1)
                                        Index Cond: (account_id = a.account_id)
                                        Buffers: shared hit=3
-                     ->  Index Scan using financial_transaction_pkey on financial_transaction ft  (cost=0.42..0.48 rows=1 width=23) (actual time=0.008..0.008 rows=1 loops=21)
+                     ->  Index Scan using financial_transaction_pkey on financial_transaction ft  (cost=0.42..0.48 rows=1 width=23) (actual time=0.011..0.011 rows=1 loops=21)
                            Index Cond: (transaction_id = le.transaction_id)
                            Buffers: shared hit=84
  Planning:
    Buffers: shared hit=484
- Planning Time: 3.656 ms
- Execution Time: 0.700 ms
+ Planning Time: 9.134 ms
+ Execution Time: 1.508 ms
 (31 rows)
 

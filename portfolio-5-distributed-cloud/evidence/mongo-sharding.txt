@@ -1,0 +1,39 @@
+
+=== 0. Build the cluster
+  shard shard1: shard1/127.0.0.1:27311
+  shard shard2: shard2/127.0.0.1:27321
+  router: mongos on 127.0.0.1:27300; config server replica set cfg on 127.0.0.1:27301
+
+=== 1. Shard the collections, then load the Portfolio 2 data through mongos
+  accounts: { _id: hashed }   transactions: { _id: hashed }   statement_lines: { accountId: hashed }
+  imported accounts            30002 documents in   0.5 s
+  imported transactions       534841 documents in   9.0 s
+  imported statement_lines   1037168 documents in  12.6 s
+
+=== 2. How the data is spread across the shards
+  accounts         shard1:   15191 docs (50.6%), 2 chunks   shard2:   14811 docs (49.4%), 2 chunks
+  transactions     shard1:  268459 docs (50.2%), 2 chunks   shard2:  266382 docs (49.8%), 2 chunks
+  statement_lines  shard1:  425608 docs (41.0%), 2 chunks   shard2:  611560 docs (59.0%), 2 chunks
+
+=== 3. Query routing: targeted vs scatter-gather
+  accounts by _id (the shard key)
+      SINGLE_SHARD: 1 shard(s) [shard2], 1 keys and 1 documents examined, shards returned 1, median 3 ms
+  accounts by accountNumber (not the shard key)
+      SHARD_MERGE: 2 shard(s) [shard2, shard1], 1 keys and 1 documents examined, shards returned 1, median 1 ms
+  transactions by _id (the shard key)
+      SINGLE_SHARD: 1 shard(s) [shard1], 1 keys and 1 documents examined, shards returned 1, median 1 ms
+  statement from transactions, sharded by _id: latest 20 for account 0000000001
+      SHARD_MERGE_SORT: 2 shard(s) [shard2, shard1], 40 keys and 40 documents examined, shards returned 40, median 3 ms
+  statement from statement_lines, sharded by accountId: latest 20 for account 0000000001
+      SINGLE_SHARD: 1 shard(s) [shard1], 20 keys and 20 documents examined, shards returned 20, median 2 ms
+  monthly report over all transactions (any shard key: every shard has data)
+      SHARD_MERGE: 2 shard(s) [shard2, shard1], 0 keys and 534841 documents examined, shards returned 20747, median 254 ms
+
+=== 4. One shard fails
+--- before the failure: pick one account whose statement lines live on each shard
+    account 0000000001 -> shard1, account 0000000002 -> shard2
+--- shard2 killed (SIGKILL). Each shard here has a single member, so its data is unavailable.
+  statement for 0000000001 (targeted to shard1, which is up): OK, 20 lines
+  statement for 0000000002 (targeted to shard2, which is down): FAILED, FailedToSatisfyReadPreference: Encountered non-retryable error during query :: caused by :: Could not find host matching read prefe
+  count all transactions (needs every shard): FAILED, FailedToSatisfyReadPreference: Could not find host matching read preference { mode: "primary" } for set shard2
+  find all transactions with allowPartialResults: FAILED, FailedToSatisfyReadPreference: Encountered non-retryable error during query :: caused by :: Could not find host matching read prefe

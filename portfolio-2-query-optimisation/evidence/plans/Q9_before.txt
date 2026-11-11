@@ -11,39 +11,39 @@ HAVING sum(CASE WHEN le.entry_type = 'DEBIT' THEN le.amount ELSE -le.amount END)
 
                                                                                   QUERY PLAN                                                                                   
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Finalize GroupAggregate  (cost=92997.41..214385.72 rows=515581 width=44) (actual time=1035.131..1055.631 rows=0 loops=1)
+ Finalize GroupAggregate  (cost=91531.23..212944.70 rows=515688 width=44) (actual time=962.248..984.406 rows=0 loops=1)
    Group Key: ft.reference
    Filter: (sum(CASE WHEN ((le.entry_type)::text = 'DEBIT'::text) THEN le.amount ELSE (- le.amount) END) <> '0'::numeric)
    Rows Removed by Filter: 518584
-   Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
-   ->  Gather Merge  (cost=92997.41..200320.96 rows=838958 width=44) (actual time=475.394..794.840 rows=589566 loops=1)
+   Buffers: shared hit=8667 read=12915, temp read=13647 written=13727
+   ->  Gather Merge  (cost=91531.23..198877.03 rows=839132 width=44) (actual time=410.792..720.126 rows=588485 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
-         ->  Partial GroupAggregate  (cost=91997.39..102484.36 rows=419479 width=44) (actual time=466.875..658.309 rows=196522 loops=3)
+         Buffers: shared hit=8667 read=12915, temp read=13647 written=13727
+         ->  Partial GroupAggregate  (cost=90531.20..101020.35 rows=419566 width=44) (actual time=402.777..591.259 rows=196162 loops=3)
                Group Key: ft.reference
-               Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
-               ->  Sort  (cost=91997.39..93046.08 rows=419479 width=25) (actual time=466.818..525.903 rows=345723 loops=3)
+               Buffers: shared hit=8667 read=12915, temp read=13647 written=13727
+               ->  Sort  (cost=90531.20..91580.12 rows=419566 width=25) (actual time=402.726..461.792 rows=345723 loops=3)
                      Sort Key: ft.reference
-                     Sort Method: external merge  Disk: 12032kB
-                     Buffers: shared hit=14455 read=8608 written=3, temp read=13641 written=13730
-                     Worker 0:  Sort Method: external merge  Disk: 12720kB
-                     Worker 1:  Sort Method: external merge  Disk: 12032kB
-                     ->  Parallel Hash Join  (cost=15281.44..42783.74 rows=419479 width=25) (actual time=206.759..291.463 rows=345723 loops=3)
+                     Sort Method: external merge  Disk: 12160kB
+                     Buffers: shared hit=8667 read=12915, temp read=13647 written=13727
+                     Worker 0:  Sort Method: external merge  Disk: 12448kB
+                     Worker 1:  Sort Method: external merge  Disk: 12216kB
+                     ->  Parallel Hash Join  (cost=15283.01..41305.30 rows=419566 width=25) (actual time=164.788..236.597 rows=345723 loops=3)
                            Hash Cond: (le.transaction_id = ft.transaction_id)
-                           Buffers: shared hit=14381 read=8608 written=3, temp read=9043 written=9108
-                           ->  Parallel Seq Scan on ledger_entry le  (cost=0.00..18969.73 rows=432973 width=29) (actual time=1.373..56.075 rows=346379 loops=3)
-                                 Buffers: shared hit=10083 read=4557 written=3
-                           ->  Parallel Hash  (cost=11106.63..11106.63 rows=215905 width=28) (actual time=59.008..59.009 rows=172861 loops=3)
+                           Buffers: shared hit=8593 read=12915, temp read=9044 written=9100
+                           ->  Parallel Seq Scan on ledger_entry le  (cost=0.00..17488.73 rows=432973 width=29) (actual time=0.052..36.584 rows=346379 loops=3)
+                                 Buffers: shared hit=4311 read=8848
+                           ->  Parallel Hash  (cost=11106.63..11106.63 rows=215950 width=28) (actual time=55.357..55.358 rows=172861 loops=3)
                                  Buckets: 131072  Batches: 8  Memory Usage: 5120kB
-                                 Buffers: shared hit=4270 read=4051, temp written=2708
-                                 ->  Parallel Seq Scan on financial_transaction ft  (cost=0.00..11106.63 rows=215905 width=28) (actual time=0.086..27.195 rows=172861 loops=3)
+                                 Buffers: shared hit=4254 read=4067, temp written=2708
+                                 ->  Parallel Seq Scan on financial_transaction ft  (cost=0.00..11106.63 rows=215950 width=28) (actual time=0.073..26.965 rows=172861 loops=3)
                                        Filter: ((status)::text = 'POSTED'::text)
                                        Rows Removed by Filter: 5419
-                                       Buffers: shared hit=4270 read=4051
+                                       Buffers: shared hit=4254 read=4067
  Planning:
    Buffers: shared hit=309
- Planning Time: 2.418 ms
- Execution Time: 1058.428 ms
+ Planning Time: 2.376 ms
+ Execution Time: 995.998 ms
 (34 rows)
 

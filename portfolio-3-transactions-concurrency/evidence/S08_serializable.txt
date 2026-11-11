@@ -1,0 +1,58 @@
+Scenario S08_serializable: CONTROL 2: SERIALIZABLE detects the double spend in the unlocked code; the retry is rejected
+Expected: B fails with a serialization failure (SQLSTATE 40001); B's retry reads 5,000 and is rejected; balance 5,000
+Result:   PASS
+
+Sessions: A starts at 0.0s, B starts at 0.5s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | A: the same unlocked code as S06, but under SERIALIZABLE
+  0.03s  A | BEGIN ISOLATION LEVEL SERIALIZABLE;
+  0.03s  A | BEGIN
+  0.03s  A | SELECT unsafe_withdrawal('WDR-A', '0012345601', 15000, 2);
+  0.04s  A | psql:scenarios/S08_serializable_A.sql:3: NOTICE:  WDR-A read balance 20000.00 at 13:20:55.600
+  0.56s  B | B: the same unlocked code as S06, but under SERIALIZABLE
+  0.56s  B | BEGIN ISOLATION LEVEL SERIALIZABLE;
+  0.57s  B | BEGIN
+  0.57s  B | SELECT unsafe_withdrawal('WDR-B', '0012345601', 15000, 2);
+  0.60s  B | psql:scenarios/S08_serializable_B.sql:3: NOTICE:  WDR-B read balance 20000.00 at 13:20:56.151
+  2.07s  A |                         unsafe_withdrawal                        
+  2.07s  A | -----------------------------------------------------------------
+  2.07s  A |  WDR-A posted: withdrew 15000 from a balance it read as 20000.00
+  2.07s  A | (1 row)
+  2.07s  A | 
+  2.07s  A | COMMIT;
+  2.08s  A | COMMIT
+  2.61s  B | psql:scenarios/S08_serializable_B.sql:3: ERROR:  could not serialize access due to read/write dependencies among transactions
+  2.61s  B | DETAIL:  Reason code: Canceled on identification as a pivot, during write.
+  2.61s  B | HINT:  The transaction might succeed if retried.
+  2.61s  B | COMMIT;
+  2.61s  B | ROLLBACK
+  2.61s  B | B: the application treats SQLSTATE 40001 as "retry the whole transaction" and retries once
+  2.61s  B | BEGIN ISOLATION LEVEL SERIALIZABLE;
+  2.61s  B | BEGIN
+  2.61s  B | SELECT unsafe_withdrawal('WDR-B-RETRY', '0012345601', 15000, 0);
+  2.61s  B | psql:scenarios/S08_serializable_B.sql:7: NOTICE:  WDR-B-RETRY read balance 5000.00 at 13:20:58.166
+  2.61s  B | psql:scenarios/S08_serializable_B.sql:7: ERROR:  WDR-B-RETRY rejected: insufficient funds (balance 5000.00, requested 15000)
+  2.61s  B | COMMIT;
+  2.61s  B | ROLLBACK
+  2.61s  B | SELECT account_number, balance FROM customer_account_balance WHERE account_number = '0012345601';
+  2.62s  B |  account_number | balance 
+  2.62s  B | ----------------+---------
+  2.62s  B |  0012345601     | 5000.00
+  2.62s  B | (1 row)
+  2.62s  B | 
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     |   5000.00
+ 0012345602     |   5000.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+ reference | transaction_type | status |  amount  | posted 
+-----------+------------------+--------+----------+--------
+ WDR-A     | WITHDRAWAL       | POSTED | 15000.00 | t
+

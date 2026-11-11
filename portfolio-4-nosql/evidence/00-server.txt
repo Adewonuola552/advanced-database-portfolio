@@ -1,0 +1,1 @@
+MongoDB 7.0.2 replica set clearpay-rs ready on port 27117

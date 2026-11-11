@@ -1,7 +1,14 @@
-Time: 1107.318 ms (00:01.107)
-Time: 23.177 ms
-Time: 542.795 ms
-Time: 325.310 ms
-Time: 40.328 ms
-Time: 163.229 ms
-Time: 463.406 ms
+idx_ledger_account_created
+Time: 1211.516 ms (00:01.212)
+idx_account_customer
+Time: 11.471 ms
+idx_ledger_created
+Time: 550.272 ms
+idx_ft_posted_at
+Time: 236.279 ms
+idx_ft_pending_created
+Time: 38.722 ms
+idx_audit_details
+Time: 181.826 ms
+ANALYZE
+Time: 438.093 ms

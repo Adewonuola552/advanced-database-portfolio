@@ -1,0 +1,10 @@
+Source: PostgreSQL database clearpay_p2
+PostgreSQL 15.13 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit
+real 23.28
+user 0.84
+sys 1.92
+   30002 .export/accounts.json
+  100000 .export/audit_events.json
+   20000 .export/customers.json
+  534841 .export/transactions.json
+  684843 total

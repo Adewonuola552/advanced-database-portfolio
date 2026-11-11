@@ -13,40 +13,40 @@ SELECT le.created_at, ft.reference, ft.transaction_type, le.entry_type, le.amoun
 
                                                                                      QUERY PLAN                                                                                     
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Limit  (cost=22410.67..22411.37 rows=6 width=41) (actual time=50.082..54.305 rows=7 loops=1)
-   Buffers: shared hit=10857 read=3934
-   ->  Gather Merge  (cost=22410.67..22411.37 rows=6 width=41) (actual time=50.029..54.178 rows=7 loops=1)
+ Limit  (cost=20930.43..20931.13 rows=6 width=42) (actual time=47.809..50.481 rows=7 loops=1)
+   Buffers: shared hit=1134 read=12176
+   ->  Gather Merge  (cost=20930.43..20931.13 rows=6 width=42) (actual time=47.753..50.348 rows=7 loops=1)
          Workers Planned: 2
          Workers Launched: 2
-         Buffers: shared hit=10857 read=3934
-         ->  Sort  (cost=21410.65..21410.65 rows=3 width=41) (actual time=43.322..43.326 rows=2 loops=3)
+         Buffers: shared hit=1134 read=12176
+         ->  Sort  (cost=19930.41..19930.42 rows=3 width=42) (actual time=40.584..40.588 rows=2 loops=3)
                Sort Key: le.created_at DESC
                Sort Method: quicksort  Memory: 25kB
-               Buffers: shared hit=10857 read=3934
+               Buffers: shared hit=1134 read=12176
                Worker 0:  Sort Method: quicksort  Memory: 25kB
                Worker 1:  Sort Method: quicksort  Memory: 25kB
-               ->  Nested Loop  (cost=8.74..21410.62 rows=3 width=41) (actual time=22.401..43.236 rows=2 loops=3)
-                     Buffers: shared hit=10841 read=3934
-                     ->  Hash Join  (cost=8.32..21408.77 rows=3 width=37) (actual time=22.327..43.137 rows=2 loops=3)
+               ->  Nested Loop  (cost=8.74..19930.39 rows=3 width=42) (actual time=17.767..40.494 rows=2 loops=3)
+                     Buffers: shared hit=1118 read=12176
+                     ->  Hash Join  (cost=8.32..19928.54 rows=3 width=37) (actual time=17.672..40.370 rows=2 loops=3)
                            Hash Cond: (le.account_id = a.account_id)
-                           Buffers: shared hit=10811 read=3934
-                           ->  Parallel Seq Scan on ledger_entry le  (cost=0.00..21134.60 rows=101266 width=53) (actual time=0.024..37.149 rows=81349 loops=3)
+                           Buffers: shared hit=1088 read=12176
+                           ->  Parallel Seq Scan on ledger_entry le  (cost=0.00..19653.60 rows=101558 width=53) (actual time=0.029..34.139 rows=81349 loops=3)
                                  Filter: ((created_at >= '2026-01-01 01:00:00+01'::timestamp with time zone) AND (created_at < '2026-07-01 01:00:00+01'::timestamp with time zone))
                                  Rows Removed by Filter: 265030
-                                 Buffers: shared hit=10706 read=3934
-                           ->  Hash  (cost=8.30..8.30 rows=1 width=16) (actual time=0.036..0.037 rows=1 loops=3)
+                                 Buffers: shared hit=983 read=12176
+                           ->  Hash  (cost=8.30..8.30 rows=1 width=16) (actual time=0.028..0.028 rows=1 loops=3)
                                  Buckets: 1024  Batches: 1  Memory Usage: 9kB
                                  Buffers: shared hit=11
-                                 ->  Index Scan using account_number_unique on account a  (cost=0.29..8.30 rows=1 width=16) (actual time=0.032..0.032 rows=1 loops=3)
+                                 ->  Index Scan using account_number_unique on account a  (cost=0.29..8.30 rows=1 width=16) (actual time=0.023..0.024 rows=1 loops=3)
                                        Index Cond: ((account_number)::text = '0000015001'::text)
                                        Buffers: shared hit=11
-                     ->  Index Scan using financial_transaction_pkey on financial_transaction ft  (cost=0.42..0.62 rows=1 width=36) (actual time=0.019..0.019 rows=1 loops=7)
+                     ->  Index Scan using financial_transaction_pkey on financial_transaction ft  (cost=0.42..0.62 rows=1 width=37) (actual time=0.023..0.023 rows=1 loops=7)
                            Index Cond: (transaction_id = le.transaction_id)
                            Filter: ((status)::text = 'POSTED'::text)
                            Buffers: shared hit=30
  Planning:
    Buffers: shared hit=403
- Planning Time: 2.741 ms
- Execution Time: 54.678 ms
+ Planning Time: 3.439 ms
+ Execution Time: 50.865 ms
 (35 rows)
 

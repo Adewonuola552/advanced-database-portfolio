@@ -1,0 +1,61 @@
+Scenario S05_no_dirty_read: No dirty reads: an uncommitted transfer is invisible, even under READ UNCOMMITTED
+Expected: B reads Amina as 20,000 while A's 5,000 transfer is uncommitted; A rolls back
+Result:   PASS
+
+Sessions: A starts at 0.0s, B starts at 0.7s
+Each line: seconds since the scenario started | session | psql output
+====================================================================================================
+  0.03s  A | A: starts a 5,000 transfer from Amina, waits 2 seconds without committing, then rolls back
+  0.03s  A | BEGIN;
+  0.03s  A | BEGIN
+  0.03s  A | SELECT post_transfer('req-5001', 'TRF-5001', '0012345601', '0012345602', 5000, 'amina.mobile-app') IS NOT NULL AS posted;
+  0.05s  A |  posted 
+  0.05s  A | --------
+  0.05s  A |  t
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | SELECT balance AS amina_seen_by_A FROM customer_account_balance WHERE account_number = '0012345601';
+  0.05s  A |  amina_seen_by_a 
+  0.05s  A | -----------------
+  0.05s  A |         15000.00
+  0.05s  A | (1 row)
+  0.05s  A | 
+  0.05s  A | SELECT pg_sleep(2);
+  0.76s  B | B: asks for READ UNCOMMITTED and reads Amina while A's transfer is uncommitted
+  0.76s  B | BEGIN ISOLATION LEVEL READ UNCOMMITTED;
+  0.77s  B | BEGIN
+  0.77s  B | SHOW transaction_isolation;
+  0.77s  B |  transaction_isolation 
+  0.77s  B | -----------------------
+  0.77s  B |  read uncommitted
+  0.77s  B | (1 row)
+  0.77s  B | 
+  0.77s  B | SELECT balance AS amina_seen_by_B FROM customer_account_balance WHERE account_number = '0012345601';
+  0.78s  B |  amina_seen_by_b 
+  0.78s  B | -----------------
+  0.78s  B |         20000.00
+  0.78s  B | (1 row)
+  0.78s  B | 
+  0.78s  B | COMMIT;
+  0.78s  B | COMMIT
+  2.05s  A |  pg_sleep 
+  2.05s  A | ----------
+  2.05s  A |  
+  2.05s  A | (1 row)
+  2.05s  A | 
+  2.05s  A | ROLLBACK;
+  2.05s  A | ROLLBACK
+====================================================================================================
+Final state, read by a new connection after all sessions ended:
+
+ account_number |  balance  
+----------------+-----------
+ 0012345601     |  20000.00
+ 0012345602     |   5000.00
+ 0012345603     |      0.00
+ 0012345604     | 100000.00
+ 0012345605     |      0.00
+
+ reference | transaction_type | status | amount | posted 
+-----------+------------------+--------+--------+--------
+

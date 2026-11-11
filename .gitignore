@@ -1,0 +1,6 @@
+# Local database files created by the portfolio scripts
+.mongo-data/
+.export/
+.cluster/
+__pycache__/
+.DS_Store
